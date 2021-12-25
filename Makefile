@@ -7,11 +7,11 @@ all: kernel8.img
 start.o: start.S
 	$(AAPRE)as -c start.S -o start.o
 
-kmain.o: kmain.c
-	$(AAPRE)gcc $(CFLAGS) -c kmain.c -o kmain.o
+%.o: %.c
+	$(AAPRE)gcc $(CFLAGS) -c $< -o $@
 
-kernel8.img: start.o kmain.o
-	$(AAPRE)gcc -ffreestanding -nostdlib start.o kmain.o -T kernel.ld -o kernel8.elf
+kernel8.img: start.o kmain.o uart.o mmio.o util.o
+	$(AAPRE)gcc -ffreestanding -nostdlib $^ -T kernel.ld -o kernel8.elf
 	$(AAPRE)objcopy -O binary kernel8.elf kernel8.img
 
 .PHONY: clean
