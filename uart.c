@@ -78,3 +78,15 @@ void uart_puts(const char* str)
     for (size_t i = 0; str[i] != '\0'; i ++)
         uart_putc((unsigned char)str[i]);
 }
+
+char hex_lookup[] =
+{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B',
+'C', 'D', 'E', 'F'};
+
+void uart_hex(uint64_t a)
+{
+    uart_puts("0x");
+    for (int i = 0; i < 16; i++) { // 16 nibbles
+        uart_putc(hex_lookup[(a >> 4 * (15 - i)) & 0xF]);
+    }
+}

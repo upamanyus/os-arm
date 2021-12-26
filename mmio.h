@@ -8,11 +8,12 @@
 
 enum {
 MMIO_BASE    = 0x3F000000,      // for raspi2 & 3
+MMIO_END     = 0x3FFFFFFF,      // for raspi2 & 3
 
 GPIO_BASE    = 0x200000,
 
 // Controls actuation of pull up/down to ALL GPIO pins.
-GPPUD = (GPIO_BASE + 0x94),
+GPPUD        = (GPIO_BASE + 0x94),
 
 // Controls actuation of pull up/down for specific GPIO pin.
 GPPUDCLK0    = (GPIO_BASE + 0x98),

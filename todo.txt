@@ -1,0 +1,16 @@
+= Memory
+* Declare memory map
+* Kernel allocator
+* Page allocator
+= Filesystem
+* Implement some super-basic filesystem (FAT?).
+= Multiprocessing
+* Want some syscalls, like
+  - clone/fork/exec (for linux compat)
+  - spawn (because it's nicer)
+* elf support
+* kmain() will execute "init" process, whatever that is.
+= Graphics
+* allocate framebuffer (via mailbox)
+* abstraction layer about fb?
+* fb console
