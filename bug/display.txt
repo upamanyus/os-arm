@@ -1,0 +1,18 @@
+Problem:
+Writing near (PHYS_END == 0x3C100000) causes stuff to show up on screen in qemu.
+However, I can't find documentation saying that this memory is default-mapped to
+a display framebuffer.
+
+Began looking at qemu source code to see where in the emulator this happens.
+
+https://github.com/qemu/qemu/blob/73c8bf4ccff8951d228b8a0d49968c56e32da4de/hw/arm/bcm2835_peripherals.c#L245
+vcram_base = ram_size - vcram_size;
+ram_size = 1GiB for RPI 3 (https://github.com/qemu/qemu/blob/266469947161aa10b1d36843580d369d5aa38589/docs/system/arm/raspi.rst)
+vcram_size -> DEFAULT_VCRAM_SIZE = 0x4000000
+BCM2835_FB_OFFSET = 0x00100000
+
+So, BCM2835 framebuffer starts at
+ram_size - vcram_size + FB_OFFSET
+0x40000000 -
+ 0x4000000 +
+ 0x0100000

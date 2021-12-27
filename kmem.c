@@ -13,7 +13,7 @@ static struct ptrptr* freelist;
 
 static inline uint8_t* pgup(uint8_t* addr)
 {
-    return (uint8_t*) (PGSIZE*((uint64_t)addr + (PGSIZE - 1))/PGSIZE);
+    return (uint8_t*) (PGSIZE * (((uint64_t)addr + (PGSIZE - 1))/PGSIZE));
 }
 
 static inline uint8_t* pgdown(uint8_t* addr)
@@ -23,7 +23,7 @@ static inline uint8_t* pgdown(uint8_t* addr)
 
 void kmem_init()
 {
-    uint8_t* curr_page = pgup(KERN_END) + 4096 * 100;
+    uint8_t* curr_page = pgup(KERN_END);
 
     freelist = NULL; // Initialize as though there are no free pages left. This lets us call kmem_free.
 
@@ -33,7 +33,8 @@ void kmem_init()
     }
 
     curr_page = (uint8_t*)MMIO_END+1;
-    while (curr_page < (uint8_t*)(PHYS_END)) {
+
+    while (curr_page +PGSIZE < (uint8_t*)(PHYS_END)) {
         kmem_free(curr_page);
         curr_page += PGSIZE;
     }

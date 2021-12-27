@@ -6,7 +6,7 @@
 #define PGBITS 12
 #define PGSIZE (1 << PGBITS)
 // #define PHYS_END 0x3F000000 - 4096
-#define PHYS_END (0x3C120000)
+#define PHYS_END (0x3C100000)
 
 // This module owns all of the memory after KERN_END, excluding MMIO_BASE to MMIO_END
 
