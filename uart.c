@@ -5,7 +5,6 @@
 
 #include <stddef.h>
 
-
 void uart_init(int raspi)
 {
     // Disable UART0.
