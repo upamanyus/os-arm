@@ -48,8 +48,6 @@ void kproc_create_thread(void (*fn)(uint64_t), uint64_t args)
     kprocs.ctxs[i].r[1] = args; // r20 = args
     kprocs.ctxs[i].lr = (uint64_t)kproc_start;
     kprocs.stacks[i] = (uint64_t)kmem_alloc(); // top of stack, since it grows down
-    uart_hex(kprocs.stacks[i]);
-    uart_puts("\r\n");
     kprocs.ctxs[i].sp = kprocs.stacks[i] + PGSIZE;
     kprocs.ctxs[i].fp = kprocs.ctxs[i].sp;
     kprocs.status[i] = IDLE;
@@ -89,7 +87,7 @@ void kproc_yield()
 void kproc_exit()
 {
     kprocs.status[kprocs.curr] = EMPTY;
-    // kmem_free((uint8_t*)kprocs.stacks[kprocs.curr]); // BUG: freeing the same stack we're using!
+    // kmem_free((uint8_t*)kprocs.stacks[kprocs.curr]); // (former) BUG: freeing the same stack we're using!
     // kmem_free tries to return, but the stack that it's using has been freed
     kproc_switch(&kprocs.ctxs[kprocs.curr], &sched_ctx);
 }

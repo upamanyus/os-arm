@@ -1,0 +1,3 @@
+When running kproc_exit(), I tried calling kmem_free(stack).
+However, that freed and overwrote (with garbage) the stack that kmem_free itself
+was using! Have to free that stackframe only when we aren't actively using it.
