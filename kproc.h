@@ -43,7 +43,7 @@ void kproc_create_thread(uint64_t fn);
 
 // Starts running the kernel scheduler. This will exit when there are no more
 // threads to run.
-void kproc_begin();
+void kproc_scheduler();
 
 // Called when a kproc wants to yield control to a different thread.
 void kproc_yield();

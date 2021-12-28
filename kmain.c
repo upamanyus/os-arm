@@ -64,6 +64,15 @@ void test_kproc_t2()
     uart_puts("[T2]: C\r\n");
     kproc_exit();
 }
+// above two threads running concurrently print out:
+// [T1]: A
+// [T2]: A
+// [T1]: B
+// [T2]: B
+// [T1]: C
+// [T2]: C
+// Scheduling is deterministic.
+
 
 void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3)
 {
@@ -88,7 +97,7 @@ void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3)
 
     kproc_create_thread((uint64_t)test_kproc_t1);
     kproc_create_thread((uint64_t)test_kproc_t2);
-    kproc_begin();
+    kproc_scheduler();
 
     while (1)
         uart_putc(uart_getc());

@@ -31,6 +31,13 @@ void kproc_init()
     }
 }
 
+void kproc_start_thread()
+{
+    // make stack
+    // fn()
+    //
+}
+
 void kproc_create_thread(uint64_t fn)
 {
     if (kprocs.nprocs >= MAXPROCS) {
@@ -39,7 +46,6 @@ void kproc_create_thread(uint64_t fn)
     }
 
     // FIXME: want the thread to terminate itself when done.
-
     uint64_t i = kprocs.nprocs;
     kprocs.nprocs += 1;
     kprocs.ctxs[i].lr = fn;
@@ -47,10 +53,11 @@ void kproc_create_thread(uint64_t fn)
     kprocs.status[i] = IDLE;
 }
 
-void kproc_begin()
+void kproc_scheduler()
 {
     bool took_step = false;
     do {
+        took_step = false;
         for (int i = 0; i < MAXPROCS; i++) {
             if (kprocs.status[kprocs.curr] == IDLE) {
                 kprocs.status[kprocs.curr] = RUNNING;
