@@ -25,7 +25,6 @@ struct kproc_context {
     uint64_t fp;
     uint64_t r[28 - 19 + 1];
     uint64_t v[15 - 8 + 1];
-    // FIXME: keep
 };
 
 void kproc_switch(struct kproc_context* old, struct kproc_context *to);
@@ -37,9 +36,8 @@ void kproc_switch(struct kproc_context* old, struct kproc_context *to);
 // must be called before using the below functions
 void kproc_init();
 
-// allocates a fresh kernel proc that runs fn and then exits
-void kproc_create_thread(uint64_t fn);
-
+// allocates a fresh kernel proc that runs fn and then exits_
+void kproc_create_thread(void (*fn)(uint64_t), uint64_t args);
 
 // Starts running the kernel scheduler. This will exit when there are no more
 // threads to run.

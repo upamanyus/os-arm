@@ -18,7 +18,7 @@ static inline uint8_t* pgup(uint8_t* addr)
 
 static inline uint8_t* pgdown(uint8_t* addr)
 {
-    return (uint8_t*) (PGSIZE*(uint64_t)addr/PGSIZE);
+    return (uint8_t*) (PGSIZE*((uint64_t)addr/PGSIZE));
 }
 
 void kmem_init()
@@ -47,7 +47,7 @@ void kmem_free(uint8_t* addr)
     freelist = (struct ptrptr*)addr;
 
     for (int i = 8; i < PGSIZE; i += 8) {
-        *(uint64_t*)(addr + i) = 16*i;
+        *(uint64_t*)(addr + i) = 16 * i;
     }
 }
 

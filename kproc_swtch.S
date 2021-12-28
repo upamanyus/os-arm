@@ -20,6 +20,8 @@ kproc_switch:
     stp x25, x26, [x0, #0x48]
     stp x27, x28, [x0, #0x58]
 
+    // FIXME: save and restore v registers
+
     // load from to
     ldr lr, [x1, #0]
     ldr x5, [x1, #0x8]  // caller-saved, so we can mess with it
