@@ -1,6 +1,6 @@
 AAPRE = aarch64-linux-gnu-
 CFLAGS = -O2 -g -Wall -ffreestanding -nostdlib -nostartfiles
-OBJS = start.o kmain.o uart.o mmio.o util.o kmem.o kproc_swtch.o
+OBJS = start.o kmain.o uart.o mmio.o util.o kmem.o kproc_swtch.o kproc.o
 
 .PHONY: all
 all: kernel8.img

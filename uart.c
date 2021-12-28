@@ -5,6 +5,7 @@
 
 #include <stddef.h>
 
+// uart stuff taken from https://wiki.osdev.org/Raspberry_Pi_Bare_Bones
 void uart_init(int raspi)
 {
     // Disable UART0.

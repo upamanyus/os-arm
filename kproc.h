@@ -30,11 +30,25 @@ struct kproc_context {
 
 void kproc_switch(struct kproc_context* old, struct kproc_context *to);
 
+// This stuff below is mostly for fun. Won't actually use it for implementing
+// userspace multiprocessing, because for that we might want to kproc_switch()
+// directly instead of kproc_yield() for more precise control.
+
+// must be called before using the below functions
+void kproc_init();
+
 // allocates a fresh kernel proc that runs fn and then exits
 void kproc_create_thread(uint64_t fn);
+
 
 // Starts running the kernel scheduler. This will exit when there are no more
 // threads to run.
 void kproc_begin();
+
+// Called when a kproc wants to yield control to a different thread.
+void kproc_yield();
+
+// Called when a kproc wants to exit; FIXME: this should be unnecessary.
+void kproc_exit();
 
 #endif // KCMT_H_
