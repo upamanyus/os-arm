@@ -23,8 +23,6 @@ static struct {
 
 extern char kproc_start[];
 
-// FIXME: need to do this until I can put some code in to deallocate stack when
-// thread exits
 void kproc_init()
 {
     kprocs.nprocs = 0;
@@ -75,7 +73,7 @@ void kproc_scheduler()
             }
         }
     } while (took_step);
-    uart_puts("Took no steps; kproc scheduler done\r\n");
+    uart_puts("Took no steps this round; kproc scheduler stopping\r\n");
 }
 
 void kproc_yield()
