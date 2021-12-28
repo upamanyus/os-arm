@@ -30,4 +30,11 @@ struct kproc_context {
 
 void kproc_switch(struct kproc_context* old, struct kproc_context *to);
 
+// allocates a fresh kernel proc that runs fn and then exits
+void kproc_create_thread(uint64_t fn);
+
+// Starts running the kernel scheduler. This will exit when there are no more
+// threads to run.
+void kproc_begin();
+
 #endif // KCMT_H_
