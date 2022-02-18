@@ -12,5 +12,5 @@
 kproc_start:
     mov x0, x20
     // https://developer.arm.com/documentation/100076/0100/a64-instruction-set-reference/a64-general-instructions/bl
-    blr x19 // XXX: this will only work as long as fn() is within +/- 128MB in memory
+    blr x19
     bl kproc_exit // this will switch back to scheduler

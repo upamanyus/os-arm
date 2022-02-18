@@ -3,7 +3,7 @@ ENTRY(_start)
 SECTIONS
 {
     /* Starts at LOADER_ADDR. */
-    . = 0x80000;
+    . = 0x10000; /* FIXME: is this the right address for rpi zero? */
     /* For AArch64, use . = 0x80000; */
     __start = .;
     __text_start = .;

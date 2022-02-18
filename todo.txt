@@ -1,3 +1,8 @@
+= Pre-emptive multiprocessing
+[ ] set up exception handlers
+[ ] run timer, sample handler that just printf's or some such
+[ ] context switching (save regs, etc.) timer handler
+
 = Memory
 * Declare memory map
 * Kernel allocator

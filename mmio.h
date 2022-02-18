@@ -7,8 +7,12 @@
 // https://www.raspberrypi.org/app/uploads/2012/02/BCM2835-ARM-Peripherals.pdf
 
 enum {
-MMIO_BASE    = 0x3F000000,      // for raspi2 & 3
-MMIO_END     = 0x3FFFFFFF,      // for raspi2 & 3
+
+// MMIO_BASE    = 0x3F000000,      // for raspi2 & 3
+// MMIO_END     = 0x3FFFFFFF,      // for raspi2 & 3
+
+MMIO_BASE    = 0x20000000,      // for raspi0
+MMIO_END     = 0x20FFFFFF,      // for raspi0
 
 GPIO_BASE    = 0x200000,
 

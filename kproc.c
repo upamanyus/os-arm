@@ -17,8 +17,8 @@ static struct {
     int curr;
     int status[MAXPROCS];
     struct kproc_context ctxs[MAXPROCS];
-    uint64_t stacks[MAXPROCS]; // Each of these is a single page large; no guard pages rn
-    uint64_t nprocs;
+    uint32_t stacks[MAXPROCS]; // Each of these is a single page large; no guard pages rn
+    uint32_t nprocs;
 } kprocs;
 
 extern char kproc_start[];
@@ -31,29 +31,30 @@ void kproc_init()
     }
 }
 
-void kproc_create_thread(void (*fn)(uint64_t), uint64_t args)
+void kproc_create_thread(void (*fn)(uint32_t), uint32_t args)
 {
     if (kprocs.nprocs >= MAXPROCS) {
         uart_puts("Unable to create a thread, reached max procs already\r\n");
         return;
     }
 
-    uint64_t i = kprocs.nprocs;
+    uint32_t i = kprocs.nprocs;
     kprocs.nprocs += 1;
 
     // HACK: see kproc_start.S
-    kprocs.ctxs[i].r[0] = (uint64_t)fn; // r19 = fn
-    kprocs.ctxs[i].r[1] = args; // r20 = args
-    kprocs.ctxs[i].lr = (uint64_t)kproc_start;
-    kprocs.stacks[i] = (uint64_t)kmem_alloc(); // top of stack, since it grows down
-    kprocs.ctxs[i].sp = kprocs.stacks[i] + PGSIZE;
+    // load fn and args into the first two callee-saved registers
+    kprocs.ctxs[i].r[0] = (uint32_t)fn; // in 64-bit, x19 = fn
+    kprocs.ctxs[i].r[1] = args; // in 64-bit, x20 = args
+    kprocs.ctxs[i].lr = (uint32_t)kproc_start;
+    kprocs.stacks[i] = (uint32_t)kmem_alloc();
+    kprocs.ctxs[i].sp = kprocs.stacks[i] + PGSIZE; // top of stack, since it grows down
     kprocs.ctxs[i].fp = kprocs.ctxs[i].sp;
     kprocs.status[i] = IDLE;
 }
 
 void kproc_scheduler()
 {
-    bool took_step = false;
+    bool took_step;
     do {
         took_step = false;
         for (int i = 0; i < MAXPROCS; i++) {
