@@ -13,12 +13,12 @@ static struct ptrptr* freelist;
 
 static inline uint8_t* pgup(uint8_t* addr)
 {
-    return (uint8_t*) (PGSIZE * (((uint64_t)addr + (PGSIZE - 1))/PGSIZE));
+    return (uint8_t*) (PGSIZE * (((uint32_t)addr + (PGSIZE - 1))/PGSIZE));
 }
 
 static inline uint8_t* pgdown(uint8_t* addr)
 {
-    return (uint8_t*) (PGSIZE*((uint64_t)addr/PGSIZE));
+    return (uint8_t*) (PGSIZE*((uint32_t)addr/PGSIZE));
 }
 
 void kmem_init()
@@ -46,8 +46,8 @@ void kmem_free(uint8_t* addr)
     ((struct ptrptr*)addr)->next = freelist;
     freelist = (struct ptrptr*)addr;
 
-    for (int i = 8; i < PGSIZE; i += 8) {
-        *(uint64_t*)(addr + i) = 16 * i;
+    for (int i = 4; i < PGSIZE; i += 4) {
+        *(uint32_t*)(addr + i) = 16 * i;
     }
 }
 

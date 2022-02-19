@@ -35,7 +35,7 @@ void uart_init(int raspi)
     // Set it to 3Mhz so that we can consistently set the baud rate
     if (raspi >= 3) {
         // UART_CLOCK = 30000000;
-        uint32_t r = (((uint64_t)(&mbox_clockrate) & ~0xF) | 8);
+        uint32_t r = (((uint32_t)(&mbox_clockrate) & ~0xF) | 8);
         // wait until we can talk to the VC
         while ( mmio_read(MBOX_STATUS) & 0x80000000 ) { }
         // send our message to property channel and wait for the response

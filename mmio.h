@@ -54,8 +54,8 @@ MBOX_WRITE   = (MBOX_BASE + 0x20)
 };
 
 // data in these registers is still 32-bit, it seems.
-void mmio_write(uint64_t reg, uint32_t data);
+void mmio_write(uint32_t reg, uint32_t data);
 
-uint32_t mmio_read(uint64_t reg);
+uint32_t mmio_read(uint32_t reg);
 
 #endif // MMIO_H_

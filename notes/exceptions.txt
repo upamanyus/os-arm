@@ -1,0 +1,18 @@
+Q: When an interrupt happens, where do we save the state of the currently
+executing code (be it a user process, kernel process, etc.)?
+A: One option is to put it on the stack.
+That's what
+https://github.com/s-matyukevich/raspberry-pi-os/blob/31fc1481f529ba1a72a8a6bc62dc488b84fc2cdb/src/lesson03/src/entry.S#L17
+does.
+What xv6 does:
+before turning on interrupts, it saves a pointer to a trapframe in sscratch.
+sscratch could point to a trapframe for the CPU that the process is currently
+executing on. xv6 gives each process its own trapframe, which serves to hold the
+register state for pre-empted processes.
+
+One question: is there a vector that can only be accessed in EL1?
+
+rpi-zero has ARM1176JZF, which seems to support vbar to set offset for vector table.
+
+My plan:
+have a (per-CPU) kernel trap-frame. When running in kernel mode, set

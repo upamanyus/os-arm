@@ -1,6 +1,7 @@
 .section ".text.boot"
 
 .global _start
+.global _halt
 
 _start:
     // read cpu id, stop slave cores
@@ -11,8 +12,8 @@ _start:
     // beq     cpu0_start
     b cpu0_start
     // cpu id > 0, stop
-halt: wfe
-    b  halt
+_halt: wfe
+    b  _halt
 cpu0_start:  // cpu id == 0
 
     // set top of stack just before our code (stack grows to a lower address per AAPCS64)
@@ -31,4 +32,4 @@ cpu0_start:  // cpu id == 0
     // jump to C code, should not return
 4:  bl      kmain
     // for failsafe, halt this core too
-    b       halt
+    b       _halt

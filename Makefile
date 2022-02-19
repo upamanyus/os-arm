@@ -2,7 +2,7 @@ AAPRE64 = aarch64-linux-gnu-
 A32PRE = arm-none-eabi-
 PFX = $(A32PRE)
 CFLAGS = -g -Wall -ffreestanding -nostdlib -nostartfiles
-OBJS = start32.o kmain.o uart.o mmio.o util.o kmem.o kproc_swtch32.o kproc.o kproc_start32.o
+OBJS = start32.o kmain.o uart.o mmio.o util.o kmem.o kproc_swtch32.o kproc.o kproc_start32.o exception.o exception_table32.o
 
 .PHONY: all
 all: kernel7.img
@@ -15,6 +15,9 @@ kproc_swtch32.o: kproc_swtch32.S
 
 kproc_start32.o: kproc_start32.S
 	$(PFX)as -c kproc_start32.S -o kproc_start32.o
+
+exception_table32.o: exception_table32.S
+	$(PFX)as -c exception_table32.S -o exception_table32.o
 
 %.o: %.c
 	$(PFX)gcc $(CFLAGS) -c $< -o $@
