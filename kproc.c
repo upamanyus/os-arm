@@ -5,6 +5,8 @@
 
 #define MAXPROCS 1024
 
+#define NCPU 1
+
 enum {
 EMPTY = 0,
 RUNNING = 1,
@@ -13,12 +15,26 @@ IDLE = 2,
 
 struct kproc_context sched_ctx;
 
+// this saves all the register state that must be restored when an execption occurs.
+// Including sp and lr, because we might end up switching to a different
+// (user-space) process after a timer interrupt fires. E.g. after a timer
+// interrupt, we won't do a ret to the .
+struct exception_frame {
+    uint32_t r[15]; // r0-r15; includes sp, lr
+};
+
+struct kproc_info {
+    int status;
+    struct kproc_context ctx;
+    uint32_t stack;
+    struct exception_frame ef;
+};
+
 static struct {
     int curr;
-    int status[MAXPROCS];
-    struct kproc_context ctxs[MAXPROCS];
-    uint32_t stacks[MAXPROCS]; // Each of these is a single page large; no guard pages rn
+    struct kproc_info procs[MAXPROCS];
     uint32_t nprocs;
+    struct exception_frame* current_ef[NCPU];
 } kprocs;
 
 extern char kproc_start[];
@@ -27,7 +43,7 @@ void kproc_init()
 {
     kprocs.nprocs = 0;
     for (int i = 0; i < MAXPROCS; i++) {
-        kprocs.status[i] = EMPTY;
+        kprocs.procs[i].status = EMPTY;
     }
 }
 
@@ -43,27 +59,31 @@ void kproc_create_thread(void (*fn)(uint32_t), uint32_t args)
 
     // HACK: see kproc_start.S
     // load fn and args into the first two callee-saved registers
-    kprocs.ctxs[i].r[0] = (uint32_t)fn; // in 64-bit, x19 = fn
-    kprocs.ctxs[i].r[1] = args; // in 64-bit, x20 = args
-    kprocs.ctxs[i].lr = (uint32_t)kproc_start;
-    kprocs.stacks[i] = (uint32_t)kmem_alloc();
-    kprocs.ctxs[i].sp = kprocs.stacks[i] + PGSIZE; // top of stack, since it grows down
-    kprocs.ctxs[i].fp = kprocs.ctxs[i].sp;
-    kprocs.status[i] = IDLE;
+    kprocs.procs[i].ctx.r[0] = (uint32_t)fn; // in 64-bit, x19 = fn
+    kprocs.procs[i].ctx.r[1] = args; // in 64-bit, x20 = args
+    kprocs.procs[i].ctx.lr = (uint32_t)kproc_start;
+    kprocs.procs[i].stack = (uint32_t)kmem_alloc();
+    kprocs.procs[i].ctx.sp = kprocs.procs[i].stack + PGSIZE; // top of stack, since it grows down
+    kprocs.procs[i].ctx.fp = kprocs.procs[i].ctx.sp;
+    kprocs.procs[i].status = IDLE;
 }
 
-void kproc_scheduler()
+void kproc_scheduler(uint32_t cpu)
 {
     bool took_step;
     do {
         took_step = false;
         for (int i = 0; i < MAXPROCS; i++) {
-            if (kprocs.status[kprocs.curr] == IDLE) {
-                kprocs.status[kprocs.curr] = RUNNING;
-                kproc_switch(&sched_ctx, &(kprocs.ctxs[kprocs.curr]));
+            if (kprocs.procs[kprocs.curr].status == IDLE) {
+                kprocs.procs[kprocs.curr].status = RUNNING;
 
-                if (kprocs.status[kprocs.curr] == EMPTY) {
-                    kmem_free((uint8_t*)kprocs.stacks[kprocs.curr]); // cleanup
+                // set the current stack for the CPU, so that an exception will
+                // put stuff on the right stack
+                kprocs.current_ef[cpu] = &kprocs.procs[kprocs.curr].ef;
+                kproc_switch(&sched_ctx, &(kprocs.procs[kprocs.curr].ctx));
+
+                if (kprocs.procs[kprocs.curr].status == EMPTY) {
+                    kmem_free((uint8_t*)kprocs.procs[kprocs.curr].stack); // cleanup
                 }
                 took_step = true;
             }
@@ -79,14 +99,14 @@ void kproc_scheduler()
 
 void kproc_yield()
 {
-    kprocs.status[kprocs.curr] = IDLE;
-    kproc_switch(&kprocs.ctxs[kprocs.curr], &sched_ctx);
+    kprocs.procs[kprocs.curr].status = IDLE;
+    kproc_switch(&kprocs.procs[kprocs.curr].ctx, &sched_ctx);
 }
 
 void kproc_exit()
 {
-    kprocs.status[kprocs.curr] = EMPTY;
-    // kmem_free((uint8_t*)kprocs.stacks[kprocs.curr]); // (former) BUG: freeing the same stack we're using!
+    kprocs.procs[kprocs.curr].status = EMPTY;
+    // kmem_free((uint8_t*)kprocs.procs[kprocs.curr].stack); // (former) BUG: freeing the same stack we're using!
     // kmem_free tries to return, but the stack that it's using has been freed
-    kproc_switch(&kprocs.ctxs[kprocs.curr], &sched_ctx);
+    kproc_switch(&kprocs.procs[kprocs.curr].ctx, &sched_ctx);
 }

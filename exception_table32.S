@@ -29,14 +29,16 @@ irq_addr:
 vector_table_end:
 
 svc_handler:
+    bx  lr
     bl  svc_exception
-    bl   _halt
+    bl  _halt
 
 invalid_handler:
     bl  fatal_unsupported_exception
     bl   _halt
 
 // FIXME: I think this should work on rpi zero, but it doesn't on qemu
+// rpi zero uses arm1176, which supposedly supports vbar.
 // void exception_init();
 // .global exception_init
 // exception_init:
@@ -47,5 +49,6 @@ invalid_handler:
 // void exception_trigger();
 .global exception_trigger
 exception_trigger:
+    .word 0xe0700090
     svc #0
     bx lr

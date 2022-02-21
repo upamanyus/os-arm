@@ -4,6 +4,30 @@ A: One option is to put it on the stack.
 That's what
 https://github.com/s-matyukevich/raspberry-pi-os/blob/31fc1481f529ba1a72a8a6bc62dc488b84fc2cdb/src/lesson03/src/entry.S#L17
 does.
+
+Linux seems to make sure that overflow doesn't happen:
+https://github.com/torvalds/linux/blob/v4.14/arch/arm64/kernel/entry.S#L74
+
+In arm32, How does linux read the usr-banked SP and LR registers?
+Does it also still set up SP_irq by reading from memory, or does it set SP_irq
+before switching to a process?
+
+Note when reading linux source: swi == svc
+arch/arm/kernel/entry-common.S:157 has the syscall exception handler.
+Note that it just writes stuff to the top of the stack!
+Also note: saves the user SP+LR by using
+  stmdb r8, {sp, lr}^
+or by using
+  kernel/entry-header.S:178
+https://github.com/torvalds/linux/commit/f4dc9a4cf26278f5b608d6e4bd16e7b27ddcf1a5#diff-a59e78fa81c7e2ae26d6caafb8bb9b9df4b280bb74098e42e17372560c5a09acL60
+
+Q: what is ARM_ORIG_r0?
+
+This means that Linux must be setting up SP_svc/SP_swi to point to a special
+kernel stack. Question: how+where does it do that?
+When a task is spawned
+
+
 What xv6 does:
 before turning on interrupts, it saves a pointer to a trapframe in sscratch.
 sscratch could point to a trapframe for the CPU that the process is currently
@@ -15,4 +39,41 @@ One question: is there a vector that can only be accessed in EL1?
 rpi-zero has ARM1176JZF, which seems to support vbar to set offset for vector table.
 
 My plan:
-have a (per-CPU) kernel trap-frame. When running in kernel mode, set
+Have a per-CPU current trap frame.
+Each kproc has its own trap frame.
+When switching to a kproc, we set the current trap frame to that kproc's trap
+frame.
+
+Have a (per-CPU) *kernel* trap-frame. It's where stuff is written when
+When running in kernel mode, set
+
+In arm32, there's a banked register for fiq, irq, svc, undef, and abort.
+
+In any given moment, the correct stack has to be set.
+We'll always be running either a specified kproc (with its own stack), or the
+"initial" kproc which runs the scheduler.
+
+Initially, IRQs are disabled, and there should be no exceptions.
+
+The boot code should set up an exception frame.
+
+
+Exception occurs. Interrupts are disabled by hardware.
+Save registers to the current exception frame.
+Q: What happens if we now turn on exceptions?
+A: If e.g. a timer interrupt fires (or maybe an inter-process interrupt) while
+in the kernel. Well, in order for this interrupt to fire, we must be executing
+in "usr" mode, so we're using the SP_usr register, and the interrupt can simply
+switch to SP_irq.
+
+When doing a switch from one proc to another.
+
+--
+
+CPSR before triggering svc:
+0x600001d3
+After:
+0x600001db
+
+
+Linux has to set up SP_<mode> somewhere, because with no setup, it defaults to 0

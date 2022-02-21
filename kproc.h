@@ -19,7 +19,7 @@
 // frame pointer, because it might be used as a general purpose register.
 // PC
 
-/*
+/* 64 bit version:
 struct kproc_context {
     uint64_t lr;
     uint64_t sp;
@@ -34,8 +34,10 @@ struct kproc_context {
     uint32_t sp;
     uint32_t fp;
     uint32_t r[6]; // r4,5,6,7,8,10
-    uint32_t v[15 - 8 + 1];
+    uint32_t v[15 - 8 + 1]; // FIXME: unused, probably get rid of this
 };
+
+struct kproc_info;
 
 void kproc_switch(struct kproc_context* old, struct kproc_context *to);
 
@@ -50,8 +52,8 @@ void kproc_init();
 void kproc_create_thread(void (*fn)(uint32_t), uint32_t args);
 
 // Starts running the kernel scheduler. This will exit when there are no more
-// threads to run.
-void kproc_scheduler();
+// threads to run. The passed in parameter is the CPU on which the scheduler is running.
+void kproc_scheduler(uint32_t cpu);
 
 // Called when a kproc wants to yield control to a different thread.
 void kproc_yield();
