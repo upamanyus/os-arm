@@ -76,4 +76,9 @@ After:
 0x600001db
 
 
-Linux has to set up SP_<mode> somewhere, because with no setup, it defaults to 0
+Linux has to set up SP_<mode> somewhere, because with no setup, it defaults to 0.
+E.g.
+https://github.com/alexhoppus/rpios/blob/29056459323f90868a10114e002315b0f7d8b626/kernel/boot.S#L80
+sets up stacks for the different exceptions.
+
+Found it: kernel/setup.c:524 cpu_init(void) sets up the exception handlers!
