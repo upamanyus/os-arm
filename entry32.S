@@ -23,8 +23,7 @@ exception_handler_entry:
 
 #define MODE_MASK 0x1f
 
-// void setup_exception_stacks(stack1, stack2, stack3, stack4, stack5);
-// sets up sp_undef, sp_prefetch, sp_abort, sp_irq, sp_undef
+// void setup_exception_stacks(uint32_t *stacks)
 .global setup_exception_stacks
 setup_exception_stacks:
     ldr r1, [r0], #0x4
@@ -32,5 +31,14 @@ setup_exception_stacks:
     ldr r1, [r0], #0x4
     setup_exception_stack #UND_MODE, r1
     ldr r1, [r0], #0x4
-    setup_exception_stack #SVC_MODE, r1
+    setup_exception_stack #HYP_MODE, r1
+    ldr r1, [r0], #0x4
+    // setup_exception_stack #SVC_MODE, r1
+    // ldr r1, [r0], #0x4
+    setup_exception_stack #IRQ_MODE, r1
+    ldr r1, [r0], #0x4
+    setup_exception_stack #FIQ_MODE, r1
+
+    msr cpsr, SVC_MODE
+
     bx lr

@@ -20,7 +20,7 @@ exception_table32.o: exception_table32.S
 	$(PFX)as -c exception_table32.S -o exception_table32.o
 
 entry32.o: entry32.S
-	$(PFX)gcc -c entry32.S -o entry32.o
+	$(PFX)gcc -c entry32.S -o entry32.o # compiling with gcc because of #define's
 
 %.o: %.c
 	$(PFX)gcc $(CFLAGS) -c $< -o $@

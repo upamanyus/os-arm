@@ -1,16 +1,19 @@
 .section ".text"
 
+// NOTE: this could be put in the "start" code directly too.
+// Benefit of copying it after the kernel starts is that we can use an
+// off-the-shelf bootloader (e.g. u-boot has its own handlers in its _start).
 .global vector_table
 // ref:
 // https://developer.arm.com/documentation/dui0471/m/handling-processor-exceptions/vector-table-for-armv6-and-earlier--armv7-a-and-armv7-r-profiles?lang=en
 vector_table:
-ldr pc, reset_addr
-ldr pc, undef_addr
-ldr pc, svc_addr
-ldr pc, prefetch_addr
-ldr pc, abort_addr
-nop         // Reserved vector
-ldr pc, irq_addr
+    ldr pc, reset_addr
+    ldr pc, undef_addr
+    ldr pc, svc_addr
+    ldr pc, prefetch_addr
+    ldr pc, abort_addr
+    nop         // Reserved vector
+    ldr pc, irq_addr
 
 reset_addr:
     .word invalid_handler

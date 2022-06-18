@@ -3,6 +3,6 @@
 
 #include <stdint.h>
 
-void setup_exception_stacks(uint32_t stacks[5]);
+void setup_exception_stacks(uint32_t *stacks);
 
 #endif // ENTRY_H_
