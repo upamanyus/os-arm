@@ -13,7 +13,7 @@ void fatal_unsupported_exception() {
 
 void svc_exception() {
     uart_puts("svc exception triggered\n");
-    uart_puts("Halting\n");
+    uart_puts("continuing with program\n");
 }
 
 void exception_init() {

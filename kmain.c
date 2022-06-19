@@ -8,6 +8,7 @@
 
 void test_kproc_t1(uint32_t args)
 {
+    exception_trigger();
     uart_puts("[T1]: A\r\n");
     kproc_yield();
     uart_puts("[T1]: B\r\n");
@@ -51,12 +52,13 @@ void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3)
     kproc_init();
     uart_puts("Done initializing kprocs\r\n");
 
+    exception_init();
+
     kproc_create_thread(test_kproc_t1, 0);
     kproc_create_thread(test_kproc_t2, 0);
     kproc_create_thread(test_kproc_t3, 0);
     kproc_scheduler(1);
 
-    exception_init();
     exception_trigger();
 
     while (1)

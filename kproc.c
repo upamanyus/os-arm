@@ -27,14 +27,12 @@ struct kproc_info {
     int status;
     struct kproc_context ctx;
     uint32_t stack;
-    struct exception_frame ef;
 };
 
 static struct {
     int curr;
     struct kproc_info procs[MAXPROCS];
     uint32_t nprocs;
-    struct exception_frame* current_ef[NCPU];
 } kprocs;
 
 extern char kproc_start[];
@@ -79,7 +77,6 @@ void kproc_scheduler(uint32_t cpu)
 
                 // set the current stack for the CPU, so that an exception will
                 // put stuff on the right stack
-                kprocs.current_ef[cpu] = &kprocs.procs[kprocs.curr].ef;
                 kproc_switch(&sched_ctx, &(kprocs.procs[kprocs.curr].ctx));
 
                 if (kprocs.procs[kprocs.curr].status == EMPTY) {
@@ -106,7 +103,7 @@ void kproc_yield()
 void kproc_exit()
 {
     kprocs.procs[kprocs.curr].status = EMPTY;
-    // kmem_free((uint8_t*)kprocs.procs[kprocs.curr].stack); // (former) BUG: freeing the same stack we're using!
+    // kmem_free((uint8_t*)kprocs.procs[kprocs.curr].stack); // (fixed BUG): freeing the same stack we're using!
     // kmem_free tries to return, but the stack that it's using has been freed
     kproc_switch(&kprocs.procs[kprocs.curr].ctx, &sched_ctx);
 }

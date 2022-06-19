@@ -1,7 +1,11 @@
 = Pre-emptive multiprocessing
-[ ] set up exception handlers
-[ ] run timer, sample handler that just printf's or some such
-[ ] context switching (save regs, etc.) timer handler
+[*] set up exception handlers.
+[ ] save process state on exception.
+[ ] Virtual memory. Test by having two kernel procs use same virtual addresses.
+[ ] load (ELF) programs.
+[ ] save user process state on per-process trapframe.
+[ ] run user programs, with cooperative multithreading.
+[ ] run timer, sample handler that just printf's or some such.
 
 = Memory
 * Declare memory map

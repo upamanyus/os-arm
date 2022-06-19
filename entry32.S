@@ -6,7 +6,6 @@
 exception_handler_entry:
     // move cpsr to spsr
 
-
 .macro setup_exception_stack mode, stack_start
     msr cpsr, \mode
     mov sp, \stack_start

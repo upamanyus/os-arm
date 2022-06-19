@@ -18,7 +18,7 @@ vector_table:
 reset_addr:
     .word invalid_handler
 undef_addr:
-    .word invalid_handler
+    .word svc_handler
 svc_addr:
     .word svc_handler
 prefetch_addr:
@@ -31,9 +31,40 @@ irq_addr:
 .global vector_table_end
 vector_table_end:
 
+.macro save_caller_regs
+    // Only save caller-saved registers.
+    // Callee-saved registers will be saved by the C function that will be
+    // called shortly.
+    //
+    push {r0-r3,r9,r12,r14}
+
+    // save cpsr
+    mrs r0, spsr
+    push    {r0}
+
+    // save sp_usr and lr_usr
+    mov r0, sp
+    stmdb   r0, {sp, lr}^
+    sub sp, #8
+.endm
+
+.macro restore_caller_regs_and_ret
+    mov r0, sp
+    ldmia r0, {sp, lr}^
+    add sp, #8
+
+    pop {r0}
+    msr spsr, r0
+
+    pop {r0-r3,r9,r12,r14}
+    movs pc, lr
+.endm
+
 svc_handler:
-    bx  lr
+    save_caller_regs
     bl  svc_exception
+    restore_caller_regs_and_ret
+    // bx  lr
     bl  _halt
 
 invalid_handler:
@@ -53,5 +84,4 @@ invalid_handler:
 .global exception_trigger
 exception_trigger:
     .word 0xe0700090
-    svc #0
     bx lr
