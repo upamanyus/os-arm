@@ -10,6 +10,8 @@ struct ptrptr {
     struct ptrptr *next;
 };
 
+// FIXME: protect this with a spinlock once the kernel is preemptible, or when
+// we run on multiple cores.
 static struct ptrptr* freelist;
 
 static inline uint8_t* pgup(uint8_t* addr)

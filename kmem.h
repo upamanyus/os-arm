@@ -29,8 +29,8 @@ uint8_t *kmem_alloc();
 // requires: ownership of page containig addr
 void kmem_free(uint8_t* addr);
 
-// Allocates 2**(order) pages continuously, if possible, or returns NULL if
+// Allocates 2**(size_power) pages continuously, if possible, or returns NULL if
 // unable to do so.
-uint8_t *kmem_alloc_many(uint32_t order);
+uint8_t *kmem_alloc_many(uint32_t size_power);
 
 #endif // KALLOC_H_

@@ -1,7 +1,7 @@
 AAPRE64 = aarch64-linux-gnu-
 A32PRE = arm-none-eabi-
 PFX = $(A32PRE)
-CFLAGS = -g -Wall -ffreestanding -nostdlib -nostartfiles
+CFLAGS = -g -Wall -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a7
 OBJS = start32.o kmain.o uart.o mmio.o util.o kmem.o kproc_switch32.o kproc.o kproc_start32.o exception.o exception_table32.o entry32.o \
 	   vm.o
 

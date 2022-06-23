@@ -53,7 +53,7 @@ void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3)
     kproc_init();
     uart_puts("Done initializing kprocs\r\n");
 
-    check_for_vm();
+    vm_check_support();
 
     exception_init();
 

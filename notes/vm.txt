@@ -8,3 +8,28 @@ First, need to be able to allocate 16K chunks of physical memory.
 
 Entries 0, 1, 2, 3 in top-level page table map to 4 second level pages all
 within 1 physical page.
+
+= Algorithm
+
+Pages are 4KB.
+4K entries in top-level table. 16KB
+256 entries in each second-level table. 1KB.
+
+Entries 0,1,2,3 in the top-level table map to (Base0,Base0+1K,Base0+2K,Base0+3K)
+for some physical page starting at Base0.
+
+Bottom 12 bits of virtual address (va) are only used at the very end to index
+into page.
+Say the upper 20bits of the va are given by
+  `abcd efgh ijkl mnop qrst`.
+We use the upper 12 bits `ab...kl` as the index into the first table.
+We use the next 8 bits `mn...st` as the index in to the second table.
+
+vm_map(va, pa):
+- If no top-level pte for va, then create a 2nd level tables for va and its neighbors.
+  + To create 2nd level tables: Allocate a physical page. Put entries in the
+    top-level table at (i0 := INDEX1(va) & 0b1111_1111_1100) (which is 0xFFC), and at
+    i1=i0+1, i2=i0+2, i3=i0+3.
+- Get base of 2nd level table for va.
+- Check if the entry at INDEX2(va) is valid. If it is, then panic.
+- Otherwise, put in a pte pointing at pa.
