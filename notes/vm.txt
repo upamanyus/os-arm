@@ -1,0 +1,10 @@
+One strangeness of armv7 is that top-level page table is 16K, but second level
+is 1K. 1K is less than a single page.
+
+https://elinux.org/Tims_Notes_on_ARM_memory_allocation
+
+= Plan:
+First, need to be able to allocate 16K chunks of physical memory.
+
+Entries 0, 1, 2, 3 in top-level page table map to 4 second level pages all
+within 1 physical page.

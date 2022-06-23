@@ -1,6 +1,7 @@
+#include <stddef.h>
 #include "kmem.h"
 #include "mmio.h"
-#include <stddef.h>
+#include "uart.h"
 
 extern char __kern_end[];
 uint8_t* const KERN_END = (uint8_t*)__kern_end;
@@ -46,6 +47,7 @@ void kmem_free(uint8_t* addr)
     ((struct ptrptr*)addr)->next = freelist;
     freelist = (struct ptrptr*)addr;
 
+    // free pages have random data in them
     for (int i = 4; i < PGSIZE; i += 4) {
         *(uint32_t*)(addr + i) = 16 * i;
     }
@@ -57,5 +59,17 @@ uint8_t* kmem_alloc()
     if (pg != NULL) {
         freelist = freelist->next;
     }
+
+    // Allocated page will be zeroed out.
+    // TODO: do this more efficiently.
+    for (int i = 0; i < PGSIZE; i += 4) {
+        *(uint32_t*)(pg + i) = 0;
+    }
+
     return pg;
+}
+
+uint8_t *kmem_alloc_many(uint32_t size_power)
+{
+    uart_panic("kmem: alloc_many unsupported");
 }

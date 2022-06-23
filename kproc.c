@@ -15,14 +15,6 @@ IDLE = 2,
 
 struct kproc_context sched_ctx;
 
-// this saves all the register state that must be restored when an execption occurs.
-// Including sp and lr, because we might end up switching to a different
-// (user-space) process after a timer interrupt fires. E.g. after a timer
-// interrupt, we won't do a ret to the .
-struct exception_frame {
-    uint32_t r[15]; // r0-r15; includes sp, lr
-};
-
 struct kproc_info {
     int status;
     struct kproc_context ctx;

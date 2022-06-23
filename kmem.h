@@ -21,7 +21,7 @@
 void kmem_init();
 
 // Allocates a single page, or returns NULL iff out of memory
-// ensures: ownership of page containing ret
+// ensures: ownership of page containing ret, and that the page is zeroed out.
 uint8_t *kmem_alloc();
 
 // Free the page containing the given address. For convenience, addr need not be
@@ -29,8 +29,8 @@ uint8_t *kmem_alloc();
 // requires: ownership of page containig addr
 void kmem_free(uint8_t* addr);
 
-// Allocates the given number of pages continuously, if possible, or returns
-// NULL if out of memory
-// uint8_t *kmem_alloc_n(uint32_t);
+// Allocates 2**(order) pages continuously, if possible, or returns NULL if
+// unable to do so.
+uint8_t *kmem_alloc_many(uint32_t order);
 
 #endif // KALLOC_H_

@@ -1,11 +1,14 @@
 = Pre-emptive multiprocessing
 [*] set up exception handlers.
-[ ] save process state on exception.
+[*] save process state on exception.
+    I think I'm doing this correctly now, but it ought to be tested.
+[ ] Support for allocating 16KB pages.
 [ ] Virtual memory. Test by having two kernel procs use same virtual addresses.
+[ ] Usr mode processes.
 [ ] load (ELF) programs.
-[ ] save user process state on per-process trapframe.
 [ ] run user programs, with cooperative multithreading.
 [ ] run timer, sample handler that just printf's or some such.
+[ ] proper kernel page allocator
 
 = Memory
 * Declare memory map

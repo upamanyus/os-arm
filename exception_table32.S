@@ -61,6 +61,11 @@ vector_table_end:
 .endm
 
 svc_handler:
+    // TODO: we could say that syscalls are to be made with a function wrapper,
+    // so caller registers are saved by the caller. I.e. we can promise that
+    // `svc #0` follows AAPCS for function calls, and require programs that
+    // invoke syscalls to deal with the syscall possibly changing caller-saved
+    // regs.
     save_caller_regs
     bl  svc_exception
     restore_caller_regs_and_ret

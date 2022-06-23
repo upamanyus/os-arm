@@ -3,6 +3,7 @@
 #include "util.h"
 #include "mailbox.h"
 
+#include <stdnoreturn.h>
 #include <stddef.h>
 
 // uart stuff taken from https://wiki.osdev.org/Raspberry_Pi_Bare_Bones
@@ -83,10 +84,30 @@ char hex_lookup[] =
 {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B',
 'C', 'D', 'E', 'F'};
 
-void uart_hex(uint64_t a)
+void uart_hex(uint32_t a)
 {
     uart_puts("0x");
-    for (int i = 0; i < 16; i++) { // 16 nibbles
-        uart_putc(hex_lookup[(a >> 4 * (15 - i)) & 0xF]);
+    for (int i = 0; i < 8; i++) { // 8 nibbles
+        uart_putc(hex_lookup[(a >> 4 * (7 - i)) & 0xF]);
+    }
+}
+
+void uart_bin(uint32_t a)
+{
+    uart_puts("0b");
+    for (int i = 0; i < 32; i++) {
+        uart_putc(hex_lookup[(a >> (31 - i)) & 0x1]);
+    }
+}
+
+noreturn void uart_panic(const char *str)
+{
+    // We could print a backtrace here.
+    uart_puts("halting from panic: ");
+    uart_puts(str);
+
+    // halt code
+    for (;;) {
+        asm ("wfe");
     }
 }

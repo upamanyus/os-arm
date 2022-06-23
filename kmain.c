@@ -5,6 +5,7 @@
 #include "kmem.h"
 #include "kproc.h"
 #include "exception.h"
+#include "vm.h"
 
 void test_kproc_t1(uint32_t args)
 {
@@ -51,6 +52,8 @@ void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3)
     uart_puts("Initializing kprocs\r");
     kproc_init();
     uart_puts("Done initializing kprocs\r\n");
+
+    check_for_vm();
 
     exception_init();
 
