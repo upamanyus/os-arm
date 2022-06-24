@@ -6,6 +6,7 @@
 #include "kproc.h"
 #include "exception.h"
 #include "vm.h"
+#include "mmio.h"
 
 void test_kproc_t1(uint32_t args)
 {
@@ -81,6 +82,10 @@ void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3)
     for (uint32_t i = 0; i < PHYS_END; i += PGSIZE) {
         // uart_hex(i);
         // uart_putc('\n');
+        vm_map(kernel_vs, i, i);
+    }
+    // MMIO_BASE is higher than PHYS_END, so map that too
+    for (uint32_t i = MMIO_BASE; i < MMIO_END; i += PGSIZE) {
         vm_map(kernel_vs, i, i);
     }
     uart_puts("Done initializing page table\r\n");

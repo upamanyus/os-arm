@@ -20,7 +20,7 @@ vm_init:
     // exception, with the FSR indicating that it was a domain error.
     // This sets domain 1 as being in "client" mode, which means the permission
     // bits in the final page table entry is actually checked before access.
-    mov r1, #1
+    mov r1, #3
     mcr p15,0,r1,c3,c0,0
 
     // Turn on MMU
