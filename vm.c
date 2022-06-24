@@ -104,6 +104,16 @@ void vm_map(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr)
     // Get the 2nd level table for vaddr, or create one if it doesn't exist.
     uint32_t pte1 = get_entry(vs, index1(vaddr));
 
+    // FIXME:
+    // https://community.infineon.com/t5/Knowledge-Base-Articles/Troubleshooting-Guide-for-Arm-Abort-Exceptions-in-Traveo-I-MCUs-KBA224420/ta-p/248577
+    // "If a permission fault has occurred based on the IFSR status, it is
+    // possible that one of the following conditions has occurred: §  The target
+    // address read from IFAR has “Device” or “Strongly-Ordered” memory
+    // attribute. This implicitly means that these areas do not have executable
+    // code. "
+    //
+    // We are getting permission fatuls because we're keeping everything as
+    // "strongly-ordered".
     if ((pte1 & PTE_KIND_MASK) != PTE1_KIND_PAGETABLE) {
         // If the entry isn't a "page table" entry, then it should be invalid.
         if ((pte1 & PTE_KIND_MASK) != PTE1_KIND_INVALID) {
