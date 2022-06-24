@@ -95,12 +95,20 @@ void vm_map(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr)
     vaddr = vaddr & PAGE_MASK;
     paddr = paddr & PAGE_MASK;
 
+    // uart_puts("vaddr index 1 = ");
+    // uart_hex(index1(vaddr));
+    // uart_puts(", index 2 = ");
+    // uart_hex(index2(vaddr));
+    // uart_puts("\n");
+
     // Get the 2nd level table for vaddr, or create one if it doesn't exist.
     uint32_t pte1 = get_entry(vs, index1(vaddr));
 
     if ((pte1 & PTE_KIND_MASK) != PTE1_KIND_PAGETABLE) {
         // If the entry isn't a "page table" entry, then it should be invalid.
         if ((pte1 & PTE_KIND_MASK) != PTE1_KIND_INVALID) {
+            uart_hex(pte1);
+            uart_puts("\n");
             uart_panic("vm_map: tried mapping a page that had an unexpected type");
         }
 
@@ -113,22 +121,23 @@ void vm_map(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr)
 
         for (int j = 0; j < 4; j++) {
             uint32_t idx = (index1(vaddr) & ~0b11) | j;
-            uint32_t new_pte = ((tbls2 >> 10) + j) | PTE1_KIND_PAGETABLE;
+            uint32_t new_pte = (tbls2 | (j << 10)) | PTE1_KIND_PAGETABLE;
             set_entry(vs, idx, new_pte);
         }
 
         pte1 = get_entry(vs, index1(vaddr));
     }
 
-    uint32_t table2_addr = (pte1 >> 10); // There are 1024 bytes in the second-level table
+    uint32_t table2_addr = (pte1 & ~0x3FF); // mask off the attribute bits to get addr
+    // uart_puts("table2_addr = ");
+    // uart_hex(table2_addr);
+    // uart_puts("\n");
     uint32_t pte2 = get_entry(table2_addr, index2(vaddr));
     if ((pte2 & PTE_KIND_MASK) != PTE2_KIND_INVALID) {
-        uart_hex(pte2);
-        uart_puts("\n");
         uart_panic("vm_map: tried mapping a page that was already mapped");
     }
 
     // TODO: what does "shareable" mean exactly? What should that bit be set to?
-    uint32_t new_pte2 = (paddr & PAGE_MASK) | PTE_ACC_PRIV_WR | PTE_ACC_USR_WR;
+    uint32_t new_pte2 = (paddr & PAGE_MASK) | PTE_ACC_PRIV_WR | PTE_ACC_USR_WR | PTE2_KIND_PAGE;
     set_entry(table2_addr, index2(vaddr), new_pte2);
 }

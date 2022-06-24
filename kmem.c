@@ -4,7 +4,7 @@
 #include "uart.h"
 
 extern char __kern_end[];
-uint8_t* const KERN_END = (uint8_t*)__kern_end;
+static uint8_t* const KERN_END = (uint8_t*)__kern_end;
 
 struct ptrptr {
     struct ptrptr *next;

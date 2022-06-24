@@ -56,6 +56,9 @@ void test_vm_map(uint32_t args)
     uart_puts("[T3]: C\r\n");
 }
 
+extern char __kern_end[];
+static uint8_t* const KERN_END = (uint8_t*)__kern_end;
+
 void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3)
 {
     uart_init(3);
@@ -73,15 +76,17 @@ void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3)
     exception_init();
 
     // initialize VM
-    uart_puts("Initalizing virtual memory\r");
+    uart_puts("Initalizing page table\r");
     vaddr_space_t kernel_vs = vm_create();
     for (uint32_t i = 0; i < PHYS_END; i += PGSIZE) {
-        uart_hex(i);
-        uart_putc('\n');
+        // uart_hex(i);
+        // uart_putc('\n');
         vm_map(kernel_vs, i, i);
     }
+    uart_puts("Done initializing page table\r\n");
+    uart_puts("Switching to virtual memory\r");
     vm_init(kernel_vs);
-    uart_puts("Done initializing virtual memory\r\n");
+    uart_puts("Done switching to virtual memory\r\n");
 
     kproc_create_thread(test_kproc_t1, 0);
     kproc_create_thread(test_kproc_t2, 0);
