@@ -105,9 +105,10 @@ noreturn void uart_panic(const char *str)
     // We could print a backtrace here.
     uart_puts("halting from panic: ");
     uart_puts(str);
+    uart_putc('\n');
 
     // halt code
     for (;;) {
-        asm ("wfe");
+        // asm ("wfe");
     }
 }

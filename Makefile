@@ -1,30 +1,16 @@
 AAPRE64 = aarch64-linux-gnu-
 A32PRE = arm-none-eabi-
 PFX = $(A32PRE)
-CFLAGS = -g -Wall -ffreestanding -nostdlib -nostartfiles -mcpu=cortex-a7
-OBJS = start32.o kmain.o uart.o mmio.o util.o kmem.o kproc_switch32.o kproc.o kproc_start32.o exception.o exception_table32.o entry32.o \
-	   vm.o
+CFLAGS = -g -Wall -ffreestanding -nostdlib -nostartfiles
+CC = $(PFX)gcc
+AS = $(PFX)as
+ASFLAGS = -mcpu=cortex-a7
+
+ASM_OBJS = start32.o kproc_switch32.o kproc_start32.o exception_table32.o entry32.o vm32.o
+OBJS = kmain.o uart.o mmio.o util.o kmem.o kproc.o exception.o vm.o $(ASM_OBJS)
 
 .PHONY: all
 all: kernel7.img
-
-start32.o: start32.S
-	$(PFX)as -c start32.S -o start32.o
-
-kproc_switch32.o: kproc_switch32.S
-	$(PFX)as -c kproc_switch32.S -o kproc_switch32.o
-
-kproc_start32.o: kproc_start32.S
-	$(PFX)as -c kproc_start32.S -o kproc_start32.o
-
-exception_table32.o: exception_table32.S
-	$(PFX)as -c exception_table32.S -o exception_table32.o
-
-entry32.o: entry32.S
-	$(PFX)gcc -c entry32.S -o entry32.o # compiling with gcc because of #define's
-
-%.o: %.c
-	$(PFX)gcc $(CFLAGS) -c $< -o $@
 
 kernel7.img: kernel.ld $(OBJS)
 	$(PFX)gcc -ffreestanding -nostdlib $(OBJS) -T kernel.ld -o kernel7.elf

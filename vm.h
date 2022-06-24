@@ -15,7 +15,7 @@ vaddr_space_t vm_create();
 
 // Adds a mapping to the given virtual address space `vs` so that the virtual
 // page containing `vaddr` maps to the physical page containing `paddr`.
-vaddr_space_t vm_map(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr);
+void vm_map(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr);
 
 // Frees the physical page that `vaddr` points to in `vs`, then removes the
 // `vaddr` from vs. Accesses to `vaddr` after this will fault.
@@ -27,5 +27,10 @@ vaddr_space_t vm_unmap(vaddr_space_t vs, uint32_t vaddr);
 // Frees all the pages that are part of this address space, including the page
 // table.
 // void vm_free(vaddr_space_t vs);
+
+// Turns on MMU and sets the current root table address to vs. Requires that the
+// vs table identity map the kernel code. Otherwise, turning on the MMU would
+// mean that the physical address corresponding to the virtual PC would change.
+void vm_init(uint32_t vs);
 
 #endif // VM_H_

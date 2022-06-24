@@ -16,12 +16,6 @@ TCR_T1SZ = (64 - 48),
 // ignore contiguous bit, since it's a TLB optimization
 };
 
-// Refer to page D5-2740 of ARMv8 manual.
-void vm_init()
-{
-    // Identity-map all of 0x0000'----'----'----
-}
-
 // https://developer.arm.com/documentation/ddi0406/cb/System-Level-Architecture/Virtual-Memory-System-Architecture--VMSA-/Short-descriptor-translation-table-format/Selecting-between-TTBR0-and-TTBR1--Short-descriptor-translation-table-format
 
 typedef struct {
@@ -129,6 +123,8 @@ void vm_map(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr)
     uint32_t table2_addr = (pte1 >> 10); // There are 1024 bytes in the second-level table
     uint32_t pte2 = get_entry(table2_addr, index2(vaddr));
     if ((pte2 & PTE_KIND_MASK) != PTE2_KIND_INVALID) {
+        uart_hex(pte2);
+        uart_puts("\n");
         uart_panic("vm_map: tried mapping a page that was already mapped");
     }
 

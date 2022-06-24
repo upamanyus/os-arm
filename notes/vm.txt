@@ -33,3 +33,15 @@ vm_map(va, pa):
 - Get base of 2nd level table for va.
 - Check if the entry at INDEX2(va) is valid. If it is, then panic.
 - Otherwise, put in a pte pointing at pa.
+
+= When and how to turn on MMU?
+ARM's advice is "Therefore, ARM strongly recommends that any code that enables
+or disables the MMU has identical virtual and physical addresses."
+
+Solution:
+put as the last page in memory a "trampoline", which is where all page-table
+switches will happen.
+
+Initial kernel page table will identity map the kernel code. It will also map a
+"trampoline" page which contains the trampoline code, which is where page tables
+are switched as a process returns to user mode from an exception.

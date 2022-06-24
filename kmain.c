@@ -41,6 +41,21 @@ void test_kproc_t3(uint32_t args)
     uart_puts("[T3]: C\r\n");
 }
 
+void test_vm_map_fn() {
+    uart_puts("Successfully entered function!\n");
+}
+
+void test_vm_map(uint32_t args)
+{
+    uart_puts("testing vm_map");
+    uart_puts("[T3]: B\r\n");
+
+    // copy code to that page
+    kproc_create_thread(test_kproc_t4, 0);
+    kproc_yield();
+    uart_puts("[T3]: C\r\n");
+}
+
 void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3)
 {
     uart_init(3);
@@ -57,10 +72,22 @@ void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3)
 
     exception_init();
 
+    // initialize VM
+    uart_puts("Initalizing virtual memory\r");
+    vaddr_space_t kernel_vs = vm_create();
+    for (uint32_t i = 0; i < PHYS_END; i += PGSIZE) {
+        uart_hex(i);
+        uart_putc('\n');
+        vm_map(kernel_vs, i, i);
+    }
+    vm_init(kernel_vs);
+    uart_puts("Done initializing virtual memory\r\n");
+
     kproc_create_thread(test_kproc_t1, 0);
     kproc_create_thread(test_kproc_t2, 0);
     kproc_create_thread(test_kproc_t3, 0);
-    kproc_scheduler(1);
+
+    kproc_scheduler(0);
 
     exception_trigger();
 
