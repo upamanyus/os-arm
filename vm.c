@@ -64,12 +64,24 @@ vaddr_space_t vm_create()
 #define PTE_EXECUTE_NEVER 0b01
 #define PTE_EXECUTE_NEVER 0b01
 
-#define PTE_ACC_PRIV_RO 0b0
-#define PTE_ACC_PRIV_WR (1 << 9)
+// https://developer.arm.com/documentation/ddi0406/c/System-Level-Architecture/Virtual-Memory-System-Architecture--VMSA-/Memory-access-control/Access-permissions?lang=en#BEIICJHF
+#define PTE_ACC_PRIV_RO (0b1 << 9)
+#define PTE_ACC_PRIV_WR (0b0 << 9)
 
 #define PTE_ACC_USR_NONE (0b01 << 4)
+// don't combine this with PTE_ACC_PRIV_RO
 #define PTE_ACC_USR_RO (0b10 << 4)
 #define PTE_ACC_USR_WR (0b11 << 4)
+
+// Not sure what inner vs outer cacheable means, but enabling them both.
+// It may be about L1 vs higher level caches.
+#define PTE_MEM_ATTR_NORMAL (0b1 << 10 /* Shareable */ \
+                                   | 0b100 << 6 /* TEX bits */ \
+                                   | 0b01 << 6 /* outer CB bits */ \
+                                   | 0b01 << 2 /* inner CB bits */)
+
+// shareable device
+#define PTE_MEM_ATTR_DEVICE (0b000 << 6 /* TEX bits */ | 0b01 << 2 /* CB bits */)
 
 static inline uint32_t index1(uint32_t addr) {
     return (addr >> 20 & 0xFFF);
@@ -87,7 +99,7 @@ static inline void set_entry(uint32_t table_addr, uint32_t idx, uint32_t pte) {
     ((uint32_t*)table_addr)[idx] = pte;
 }
 
-void vm_map(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr)
+void vm_map_with_attr(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr, uint32_t attr)
 {
     // NOTE: ref
     // https://developer.arm.com/documentation/ddi0406/cb/System-Level-Architecture/Virtual-Memory-System-Architecture--VMSA-/Short-descriptor-translation-table-format/Translation-table-walks--when-using-the-Short-descriptor-translation-table-format
@@ -148,6 +160,14 @@ void vm_map(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr)
     }
 
     // TODO: what does "shareable" mean exactly? What should that bit be set to?
-    uint32_t new_pte2 = (paddr & PAGE_MASK) | PTE_ACC_PRIV_WR | PTE_ACC_USR_WR | PTE2_KIND_PAGE;
+    uint32_t new_pte2 = (paddr & PAGE_MASK) | PTE_ACC_PRIV_WR | PTE_ACC_USR_WR | PTE2_KIND_PAGE | attr;
     set_entry(table2_addr, index2(vaddr), new_pte2);
+}
+
+void vm_map(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr) {
+    vm_map_with_attr(vs, vaddr, paddr, PTE_MEM_ATTR_NORMAL);
+}
+
+void vm_map_device(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr) {
+    vm_map_with_attr(vs, vaddr, paddr, PTE_MEM_ATTR_DEVICE);
 }

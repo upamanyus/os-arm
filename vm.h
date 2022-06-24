@@ -15,7 +15,11 @@ vaddr_space_t vm_create();
 
 // Adds a mapping to the given virtual address space `vs` so that the virtual
 // page containing `vaddr` maps to the physical page containing `paddr`.
+// Here, `paddr` should be normal memory (e.g. not memory-mapped IO).
 void vm_map(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr);
+
+// Adds a mapping from vaddr to paddr, where paddr is device memory.
+void vm_map_device(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr);
 
 // Frees the physical page that `vaddr` points to in `vs`, then removes the
 // `vaddr` from vs. Accesses to `vaddr` after this will fault.

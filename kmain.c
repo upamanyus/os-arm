@@ -86,7 +86,7 @@ void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3)
     }
     // MMIO_BASE is higher than PHYS_END, so map that too
     for (uint32_t i = MMIO_BASE; i < MMIO_END; i += PGSIZE) {
-        vm_map(kernel_vs, i, i);
+        vm_map_device(kernel_vs, i, i);
     }
     uart_puts("Done initializing page table\r\n");
     uart_puts("Switching to virtual memory\r");
