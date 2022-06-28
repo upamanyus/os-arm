@@ -78,7 +78,7 @@ invalid_handler:
 vector_table_addr:
     .word vector_table
 
-// void exception_init_vbar();
+// void exception_init_vbar(uint32_t addr);
 .global exception_init_vbar
 exception_init_vbar:
     mcr p15,0,r0,c12,c0,0
@@ -88,4 +88,29 @@ exception_init_vbar:
 .global exception_trigger
 exception_trigger:
     .word 0xe0700090
+    bx lr
+
+uproc_start_addr: .word 0x1000
+// void uproc_start(vaddr_space_t vs);
+.global uproc_start
+uproc_start:
+    // switch ttbr0 to given page table `vs`
+    mcr p15, 0, r0, c2, c0, 0
+
+    // XXX: need a barrier/fence here?
+
+    // invalidate all TLB
+    // invalidate data TLB
+    mcr p15,0,r0,c8,c6,0
+    // invalidate instruction TLB
+    mcr p15,0,r0,c8,c5,0
+    // invalidate "unified" TLBs
+    mcr p15,0,r0,c8,c3,0
+    mcr p15,0,r0,c8,c7,0
+    dsb
+    isb
+
+    // TODO: set all registers to 0
+
+    ldr lr, uproc_start_addr
     bx lr

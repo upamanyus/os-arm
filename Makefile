@@ -7,7 +7,7 @@ AS = $(PFX)as
 ASFLAGS = -mcpu=cortex-a7
 
 ASM_OBJS = start32.o kproc_switch32.o kproc_start32.o exception_table32.o entry32.o vm32.o
-OBJS = kmain.o uart.o mmio.o util.o kmem.o kproc.o exception.o vm.o $(ASM_OBJS)
+OBJS = kmain.o uart.o mmio.o util.o kmem.o kproc.o exception.o vm.o uproc.o $(ASM_OBJS)
 
 .PHONY: all
 all: kernel7.img

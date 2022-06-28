@@ -29,16 +29,14 @@ static struct {
 
 extern char kproc_start[];
 
-void kproc_init()
-{
+void kproc_init() {
     kprocs.nprocs = 0;
     for (int i = 0; i < MAXPROCS; i++) {
         kprocs.procs[i].status = EMPTY;
     }
 }
 
-void kproc_create_thread(void (*fn)(uint32_t), uint32_t args)
-{
+void kproc_create_thread(void (*fn)(uint32_t), uint32_t args) {
     if (kprocs.nprocs >= MAXPROCS) {
         uart_puts("Unable to create a thread, reached max procs already\r\n");
         return;
@@ -58,8 +56,7 @@ void kproc_create_thread(void (*fn)(uint32_t), uint32_t args)
     kprocs.procs[i].status = IDLE;
 }
 
-void kproc_scheduler(uint32_t cpu)
-{
+void kproc_scheduler(uint32_t cpu) {
     bool took_step;
     do {
         took_step = false;
@@ -86,14 +83,12 @@ void kproc_scheduler(uint32_t cpu)
     uart_puts("Took no steps this round; kproc scheduler stopping\r\n");
 }
 
-void kproc_yield()
-{
+void kproc_yield() {
     kprocs.procs[kprocs.curr].status = IDLE;
     kproc_switch(&kprocs.procs[kprocs.curr].ctx, &sched_ctx);
 }
 
-void kproc_exit()
-{
+void kproc_exit() {
     kprocs.procs[kprocs.curr].status = EMPTY;
     // kmem_free((uint8_t*)kprocs.procs[kprocs.curr].stack); // (fixed BUG): freeing the same stack we're using!
     // kmem_free tries to return, but the stack that it's using has been freed
