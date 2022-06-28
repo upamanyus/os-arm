@@ -1,4 +1,4 @@
-.section ".text"
+.section "trampsec"
 
 // NOTE: this could be put in the "start" code directly too.
 // Benefit of copying it after the kernel starts is that we can use an
@@ -6,6 +6,7 @@
 .global vector_table
 // ref:
 // https://developer.arm.com/documentation/dui0471/m/handling-processor-exceptions/vector-table-for-armv6-and-earlier--armv7-a-and-armv7-r-profiles?lang=en
+.align 8
 vector_table:
     ldr pc, reset_addr
     ldr pc, undef_addr
@@ -69,21 +70,19 @@ svc_handler:
     save_caller_regs
     bl  svc_exception
     restore_caller_regs_and_ret
-    // bx  lr
-    bl  _halt
 
 invalid_handler:
     bl  fatal_unsupported_exception
     bl   _halt
 
-// FIXME: I think this should work on rpi zero, but it doesn't on qemu
-// rpi zero uses arm1176, which supposedly supports vbar.
-// void exception_init();
-// .global exception_init
-// exception_init:
-    // ldr r1, vector_table
-    // mcr p15,0,r1,c12,c0,0
-    // bx lr
+vector_table_addr:
+    .word vector_table
+
+// void exception_init_vbar();
+.global exception_init_vbar
+exception_init_vbar:
+    mcr p15,0,r0,c12,c0,0
+    bx lr
 
 // void exception_trigger();
 .global exception_trigger

@@ -28,8 +28,7 @@ typedef struct {
 
 // Prints out idmmfr0 register, which indicates what VMSA support the system
 // has.
-void vm_check_support()
-{
+void vm_check_support() {
     // https://developer.arm.com/documentation/ddi0406/cb/System-Level-Architecture/System-Control-Registers-in-a-VMSA-implementation/VMSA-System-control-registers-descriptions--in-register-order/ID-MMFR0--Memory-Model-Feature-Register-0--VMSA
     uint32_t idmmfr0;
     asm ("MRC p15, 0, %0, c0, c1, 4"
@@ -44,8 +43,7 @@ void vm_check_support()
 // TODO: should disable MMU via SCTLR upon reset (i.e. boot)
 
 // Sets up an empty page table, with no mappings.
-vaddr_space_t vm_create()
-{
+vaddr_space_t vm_create() {
     uint32_t tbl = (uint32_t)kmem_alloc_many(2);
     return tbl;
 }
@@ -99,8 +97,7 @@ static inline void set_entry(uint32_t table_addr, uint32_t idx, uint32_t pte) {
     ((uint32_t*)table_addr)[idx] = pte;
 }
 
-void vm_map_with_attr(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr, uint32_t attr)
-{
+void vm_map_with_attr(vaddr_space_t vs, uint32_t vaddr, uint32_t paddr, uint32_t attr) {
     // NOTE: ref
     // https://developer.arm.com/documentation/ddi0406/cb/System-Level-Architecture/Virtual-Memory-System-Architecture--VMSA-/Short-descriptor-translation-table-format/Translation-table-walks--when-using-the-Short-descriptor-translation-table-format
 

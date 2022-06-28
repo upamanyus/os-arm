@@ -4,7 +4,7 @@
 #include "uart.h"
 
 extern char __kern_end[];
-static uint8_t* const KERN_END = (uint8_t*)__kern_end;
+static const addr_t KERN_END = (addr_t)__kern_end;
 
 struct ptrptr {
     struct ptrptr *next;
@@ -17,22 +17,28 @@ static struct ptrptr* freelist;
 // each chunk in this is 4 continuous pages
 static struct ptrptr* freelist4;
 
-static inline uint8_t* pgup(uint8_t* addr)
+static inline addr_t pgup(addr_t addr)
 {
-    return (uint8_t*) (PGSIZE * (((uint32_t)addr + (PGSIZE - 1))/PGSIZE));
+    return (addr_t) (PGSIZE * (((uint32_t)addr + (PGSIZE - 1))/PGSIZE));
 }
 
-static inline uint8_t* pgdown(uint8_t* addr)
+static inline addr_t pgdown(addr_t addr)
 {
-    return (uint8_t*) (PGSIZE*((uint32_t)addr/PGSIZE));
+    return (addr_t) (PGSIZE*((uint32_t)addr/PGSIZE));
 }
 
 void kmem_init()
 {
-    uint8_t* curr_page = pgup(KERN_END);
+    addr_t curr_page = pgup(KERN_END);
 
     freelist = NULL; // Initialize as though there are no free pages left. This lets us call kmem_free.
     freelist4 = NULL;
+
+    // allocate single pages until curr_page is aligned with 16KB boundary
+    while (((uint32_t)curr_page & 0x3FFF) != 0) {
+        kmem_free(curr_page);
+        curr_page += PGSIZE;
+    }
 
     // XXX: add 4 16KB pages. This will support 4 page tables.
     for (int i = 0; i < 4; i++) {
@@ -41,20 +47,20 @@ void kmem_init()
         curr_page += (4*PGSIZE);
     }
 
-    while (curr_page < (uint8_t*)(MMIO_BASE) && curr_page < (uint8_t*)(PHYS_END)) {
+    while (curr_page < (addr_t)(MMIO_BASE) && curr_page < (addr_t)(PHYS_END)) {
         kmem_free(curr_page);
         curr_page += PGSIZE;
     }
 
-    curr_page = (uint8_t*)MMIO_END+1;
+    curr_page = (addr_t)MMIO_END+1;
 
-    while (curr_page +PGSIZE < (uint8_t*)(PHYS_END)) {
+    while (curr_page + PGSIZE < (addr_t)(PHYS_END)) {
         kmem_free(curr_page);
         curr_page += PGSIZE;
     }
 }
 
-void kmem_free(uint8_t* addr)
+void kmem_free(addr_t addr)
 {
     addr = pgdown(addr);
     ((struct ptrptr*)addr)->next = freelist;
@@ -66,9 +72,9 @@ void kmem_free(uint8_t* addr)
     }
 }
 
-uint8_t* kmem_alloc()
+addr_t kmem_alloc()
 {
-    uint8_t* pg = (uint8_t*)freelist;
+    addr_t pg = (addr_t)freelist;
     if (pg != NULL) {
         freelist = freelist->next;
 
@@ -83,9 +89,9 @@ uint8_t* kmem_alloc()
     return pg;
 }
 
-uint8_t *kmem_alloc_many(uint32_t size_power)
+addr_t kmem_alloc_many(uint32_t size_power)
 {
-    uint8_t* pg = (uint8_t*)freelist4;
+    addr_t pg = (addr_t)freelist4;
     if (pg != NULL) {
         freelist4 = freelist4->next;
 

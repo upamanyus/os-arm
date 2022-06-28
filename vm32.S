@@ -1,5 +1,8 @@
 .section ".text"
 
+.global skip
+skip:
+
 // void vm_init(uint32_t vs)
 // Requires vs to be 16KB aligned.
 .global vm_init

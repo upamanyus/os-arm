@@ -8,8 +8,7 @@
 #include "vm.h"
 #include "mmio.h"
 
-void test_kproc_t1(uint32_t args)
-{
+void test_kproc_t1(uint32_t args) {
     exception_trigger();
     uart_puts("[T1]: A\r\n");
     kproc_yield();
@@ -18,23 +17,20 @@ void test_kproc_t1(uint32_t args)
     uart_puts("[T1]: C\r\n");
 }
 
-void test_kproc_t2(uint32_t args)
-{
+void test_kproc_t2(uint32_t args) {
     uart_puts("[T2]: A\r\n");
     uart_puts("[T2]: B\r\n");
     uart_puts("[T2]: C\r\n");
 }
 
-void test_kproc_t4(uint32_t args)
-{
+void test_kproc_t4(uint32_t args) {
     uart_puts("[T4]: A\r\n");
     uart_puts("[T4]: B\r\n");
     kproc_yield();
     uart_puts("[T4]: C\r\n");
 }
 
-void test_kproc_t3(uint32_t args)
-{
+void test_kproc_t3(uint32_t args) {
     uart_puts("[T3]: A\r\n");
     uart_puts("[T3]: B\r\n");
     kproc_create_thread(test_kproc_t4, 0);
@@ -46,8 +42,7 @@ void test_vm_map_fn() {
     uart_puts("Successfully entered function!\n");
 }
 
-void test_vm_map(uint32_t args)
-{
+void test_vm_map(uint32_t args) {
     uart_puts("testing vm_map");
     uart_puts("[T3]: B\r\n");
 
@@ -57,11 +52,10 @@ void test_vm_map(uint32_t args)
     uart_puts("[T3]: C\r\n");
 }
 
-extern char __kern_end[];
-static uint8_t* const KERN_END = (uint8_t*)__kern_end;
+extern char __trampoline[];
+static const addr_t TRAMPOLINE_PHYS = (addr_t)__trampoline;
 
-void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3)
-{
+void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3) {
     uart_init(3);
 
     uart_puts("Initializing memory\r");
@@ -73,8 +67,6 @@ void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3)
     uart_puts("Done initializing kprocs\r\n");
 
     vm_check_support();
-
-    exception_init();
 
     // initialize VM
     uart_puts("Initalizing page table\r");
@@ -88,10 +80,17 @@ void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3)
     for (uint32_t i = MMIO_BASE; i < MMIO_END; i += PGSIZE) {
         vm_map_device(kernel_vs, i, i);
     }
+
+    // map the exception handlers (which will include userret) to last virtual
+    // page
+    vm_map(kernel_vs, TRAMPOLINE, (uint32_t)TRAMPOLINE_PHYS);
+
     uart_puts("Done initializing page table\r\n");
     uart_puts("Switching to virtual memory\r");
     vm_init(kernel_vs);
     uart_puts("Done switching to virtual memory\r\n");
+
+    exception_init();
 
     kproc_create_thread(test_kproc_t1, 0);
     kproc_create_thread(test_kproc_t2, 0);

@@ -1,11 +1,5 @@
 .section ".text"
 
-// this is run when an exception triggers to save all the register state in
-// memory.
-.global exception_handler_entry
-exception_handler_entry:
-    // move cpsr to spsr
-
 .macro setup_exception_stack mode, stack_start
     msr cpsr, \mode
     mov sp, \stack_start

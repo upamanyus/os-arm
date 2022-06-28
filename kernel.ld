@@ -11,6 +11,13 @@ SECTIONS
     {
         KEEP(*(.text.boot))
         *(.text)
+
+        . = ALIGN(4096);
+         __trampoline = .;
+        *(trampsec)
+        . = ALIGN(4096);
+         ASSERT(. - __trampoline == 0x1000, "error: trampoline larger than one page");
+
     }
     . = ALIGN(4096); /* align to page size */
     __text_end = .;

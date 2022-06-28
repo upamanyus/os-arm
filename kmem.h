@@ -14,6 +14,10 @@
 // This is the address for 512MiB total RAM, and with vcram at the end
 #define PHYS_END (0x1C100000)
 
+#define TRAMPOLINE (0xFFFFF000)
+
+typedef uint8_t* addr_t;
+
 // This module owns all of the memory after KERN_END, excluding MMIO_BASE to
 // MMIO_END, up to PHYS_END
 
@@ -22,15 +26,15 @@ void kmem_init();
 
 // Allocates a single page, or returns NULL iff out of memory
 // ensures: ownership of page containing ret, and that the page is zeroed out.
-uint8_t *kmem_alloc();
+addr_t kmem_alloc();
 
 // Free the page containing the given address. For convenience, addr need not be
 // page-aligned.
 // requires: ownership of page containig addr
-void kmem_free(uint8_t* addr);
+void kmem_free(addr_t addr);
 
 // Allocates 2**(size_power) pages continuously, if possible, or returns NULL if
 // unable to do so.
-uint8_t *kmem_alloc_many(uint32_t size_power);
+addr_t kmem_alloc_many(uint32_t size_power);
 
 #endif // KALLOC_H_

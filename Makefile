@@ -18,7 +18,7 @@ kernel7.img: kernel.ld $(OBJS)
 
 .PHONY: clean
 clean:
-	rm -f kernel7.elf *.o
+	rm -f kernel7.elf kernel7.img *.o
 
 qemu: all
 	qemu-system-arm -nographic -M raspi0 -kernel kernel7.img
