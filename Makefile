@@ -1,30 +1,29 @@
 AAPRE64 = aarch64-linux-gnu-
-A32PRE = arm-none-eabi-
-PFX = $(A32PRE)
+PFX = $(AAPRE64)
 CFLAGS = -g -Wall -ffreestanding -nostdlib -nostartfiles
 CC = $(PFX)gcc
 AS = $(PFX)as
-ASFLAGS = -mcpu=cortex-a7
+ASFLAGS = -mcpu=cortex-a35
 
-ASM_OBJS = start32.o kproc_switch32.o kproc_start32.o exception_table32.o entry32.o vm32.o
-OBJS = kmain.o uart.o mmio.o util.o kmem.o kproc.o exception.o vm.o uproc.o $(ASM_OBJS)
+ASM_OBJS = start.o
+OBJS = kmain.o $(ASM_OBJS)
 
 .PHONY: all
-all: kernel7.img
+all: kernel64.img
 
-kernel7.img: kernel.ld $(OBJS)
-	$(PFX)gcc -ffreestanding -nostdlib $(OBJS) -T kernel.ld -o kernel7.elf
-	$(PFX)objcopy -O binary kernel7.elf kernel7.img
+kernel64.img: kernel.ld $(OBJS)
+	$(PFX)gcc -ffreestanding -nostdlib $(OBJS) -T kernel.ld -o kernel64.elf
+	$(PFX)objcopy -O binary kernel64.elf kernel64.img
 
 .PHONY: clean
 clean:
-	rm -f kernel7.elf kernel7.img *.o
+	rm -f kernel64.elf kernel64.img *.o
 
 qemu: all
-	qemu-system-arm -nographic -M raspi0 -kernel kernel7.img
+	qemu-system-arm -nographic -M raspi0 -kernel kernel64.img
 
 qemu-graphic: all
-	qemu-system-arm -M raspi0 -kernel kernel7.img -serial stdio
+	qemu-system-arm -M raspi0 -kernel kernel64.img -serial stdio
 
 qemu-gdb: all
-	qemu-system-arm -M raspi0 -kernel kernel7.img -S -gdb tcp::12345 -nographic
+	qemu-system-arm -M raspi0 -kernel kernel64.img -S -gdb tcp::12345 -nographic

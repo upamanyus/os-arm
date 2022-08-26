@@ -1,0 +1,6 @@
+https://lists.llvm.org/pipermail/llvm-dev/2018-July/124572.html
+Zircon (Fuschia kernel) is trying to statically determine upper bounds on stack
+sizes to ensure overflow doesn't happen.
+
+https://lists.llvm.org/pipermail/llvm-dev/2018-July/124599.html
+Seems like LLVM will already have this somewhere per-function.

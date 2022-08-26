@@ -1,105 +1,115 @@
-#include <stddef.h>
 #include <stdint.h>
 
-#include "uart.h"
-#include "kmem.h"
-#include "kproc.h"
-#include "exception.h"
-#include "vm.h"
-#include "mmio.h"
+const uint64_t UART_BASE = 0xff0a0000;
 
-void test_kproc_t1(uint32_t args) {
-    exception_trigger();
-    uart_puts("[T1]: A\r\n");
-    kproc_yield();
-    uart_puts("[T1]: B\r\n");
-    kproc_yield();
-    uart_puts("[T1]: C\r\n");
+// receive buffer register
+const uint64_t UART_RBR = UART_BASE + 0x00;
+// transmit holding register
+const uint64_t UART_THR = UART_BASE + 0x00;
+
+// divisor latch low
+const uint64_t UART_DLL = UART_BASE + 0x00;
+
+// divisor latch high
+const uint64_t UART_DLH = UART_BASE + 0x04;
+
+// fifo control register
+const uint64_t UART_FCR = UART_BASE + 0x08;
+
+// line control register
+const uint64_t UART_LCR = UART_BASE + 0x0c;
+
+// line status register
+const uint64_t UART_LSR = UART_BASE + 0x0014;
+
+void mmio_write(uint64_t addr, uint32_t data)
+{
+    *(volatile uint32_t*)(addr) = data;
 }
 
-void test_kproc_t2(uint32_t args) {
-    uart_puts("[T2]: A\r\n");
-    uart_puts("[T2]: B\r\n");
-    uart_puts("[T2]: C\r\n");
+uint64_t mmio_read(uint64_t addr)
+{
+    return *(volatile uint32_t*)(addr);
 }
 
-void test_kproc_t4(uint32_t args) {
-    uart_puts("[T4]: A\r\n");
-    uart_puts("[T4]: B\r\n");
-    kproc_yield();
-    uart_puts("[T4]: C\r\n");
-}
-
-void test_kproc_t3(uint32_t args) {
-    uart_puts("[T3]: A\r\n");
-    uart_puts("[T3]: B\r\n");
-    kproc_create_thread(test_kproc_t4, 0);
-    kproc_yield();
-    uart_puts("[T3]: C\r\n");
-}
-
-void test_vm_map_fn() {
-    uart_puts("Successfully entered function!\n");
-}
-
-void test_vm_map(uint32_t args) {
-    uart_puts("testing vm_map");
-    uart_puts("[T3]: B\r\n");
-
-    // copy code to that page
-    kproc_create_thread(test_kproc_t4, 0);
-    kproc_yield();
-    uart_puts("[T3]: C\r\n");
-}
-
-extern char __trampoline[];
-static const addr_t TRAMPOLINE_PHYS = (addr_t)__trampoline;
-
-void kmain(uint64_t dtb_ptr32, uint64_t x1, uint64_t x2, uint64_t x3) {
-    uart_init(3);
-
-    uart_puts("Initializing memory\r");
-    kmem_init();
-    uart_puts("Done initializing memory\r\n");
-
-    uart_puts("Initializing kprocs\r");
-    kproc_init();
-    uart_puts("Done initializing kprocs\r\n");
-
-    vm_check_support();
-
-    // initialize VM
-    uart_puts("Initalizing page table\r");
-    vaddr_space_t kernel_vs = vm_create();
-    for (uint32_t i = 0; i < PHYS_END; i += PGSIZE) {
-        // uart_hex(i);
-        // uart_putc('\n');
-        vm_map(kernel_vs, i, i);
+// Loop `count` times in a way that the compiler won't optimize away
+void delay(uint64_t count)
+{
+    for (;;) {
+        if (count == 0) {
+            return;
+        }
+        count = count - 1;
     }
-    // MMIO_BASE is higher than PHYS_END, so map that too
-    for (uint32_t i = MMIO_BASE; i < MMIO_END; i += PGSIZE) {
-        vm_map_device(kernel_vs, i, i);
+    // asm volatile("__delay_%=: subs %[count], %[count], #1; bne __delay_%=\n"
+                 // : "=r"(count): [count]"0"(count) : "cc");
+}
+
+void set_clock() {
+    // Integer mode:
+    // FOUTVCO = (FREF / REFDIV) * FBDIV
+    // FOUTPOSTDIV = FOUTVCO / (POSTDIV1*POSTDIV2)
+    // to get 1200MHz, e.g. set REFDIV = 1 and FBDIV = 100,
+    // and POSTDIV1 = 2, POSTDIV2 = 1. This is the reset config.
+    // Not sure why POSTDIV1 = 2.
+    //
+    // Set DSMPD = 1
+
+    // FIXME: do this
+}
+
+void uart_init() {
+    set_clock();
+    // set the baud rate to 19200
+    // XXX: also need USR[0] to be zero
+    mmio_write(UART_LCR, 0b10000000); // enable access to DLL+DLH
+
+    // default/reset DPLL clock is 1200MHz
+    // baud rate = sclk / (16 * divisor)
+    // want divisor = 3906
+    uint16_t divisor = 3906;
+    mmio_write(UART_DLL, divisor & 0xFF);
+    mmio_write(UART_DLH, (divisor & 0xFF00) >> 8);
+
+    mmio_write(UART_LCR, 0b0); // disable access to DLL+DLH, enable access to other regs
+
+    // wait at least 8 clock cycles (of the slowest uart clock)
+    delay(2e6);
+
+    mmio_write(UART_FCR, 0x01); // enable FIFO
+}
+
+void uart_putc(char c) {
+    for (;;) {
+        uint32_t lsr = mmio_read(UART_LSR);
+        if (lsr >> 5 & 0x1) { // if THR empty
+            mmio_write(UART_THR, c);
+            return;
+        }
     }
+}
 
-    // map the exception handlers (which will include userret) to last virtual
-    // page
-    vm_map(kernel_vs, TRAMPOLINE, (uint32_t)TRAMPOLINE_PHYS);
+char uart_getc() {
+    for (;;) {
+        uint32_t lsr = mmio_read(UART_LSR);
+        if (lsr & 0x1) { // if the data ready bit is set
+            return (char)(mmio_read(UART_THR));
+        }
+    }
+}
 
-    uart_puts("Done initializing page table\r\n");
-    uart_puts("Switching to virtual memory\r");
-    vm_init(kernel_vs);
-    uart_puts("Done switching to virtual memory\r\n");
+void kmain() {
+    uart_init();
 
-    exception_init();
-
-    kproc_create_thread(test_kproc_t1, 0);
-    kproc_create_thread(test_kproc_t2, 0);
-    kproc_create_thread(test_kproc_t3, 0);
-
-    kproc_scheduler(0);
-
-    exception_trigger();
-
-    while (1)
-        uart_putc(uart_getc());
+    uart_putc('H');
+    uart_putc('e');
+    uart_putc('l');
+    uart_putc('l');
+    uart_putc('o');
+    uart_putc('\n');
+    uart_putc('\r');
+    for(;;) {
+        char c = uart_getc();
+        uart_putc(c);
+    }
 }
