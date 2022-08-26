@@ -1,0 +1,6 @@
+[submodule "rockpiS/rkbin"]
+	path = rockpiS/rkbin
+	url = https://github.com/rockchip-linux/rkbin.git
+[submodule "rockpiS/u-boot"]
+	path = rockpiS/u-boot
+	url = https://github.com/u-boot/u-boot
