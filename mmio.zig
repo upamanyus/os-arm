@@ -19,8 +19,8 @@ pub const RawRegister = struct {
 
 // UART registers
 
-const MMIO_BASE: usize = 0x3F000000; // for raspi2 & 3
-const MMIO_END: usize = 0x3FFFFFFF; // for raspi2 & 3
+pub const MMIO_BASE: usize = 0x3F000000; // for raspi2 & 3
+pub const MMIO_END: usize = 0x40000000; // for raspi2 & 3
 
 const GPIO_BASE: usize = MMIO_BASE + 0x200000;
 

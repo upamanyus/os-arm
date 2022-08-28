@@ -1,10 +1,12 @@
 const mmio = @import("mmio.zig");
 const util = @import("util.zig");
+const std = @import("std");
+const panic = @import("panic");
 
 const mbox_clockrate: [9]u32 align(16) = .{ 9 * 4, 0, 0x38002, 12, 8, 2, 3000000, 0, 0 };
 
 // uart implementation for raspberry pi 3b
-pub fn uart_init() void {
+pub fn init() void {
     // Disable UART0.
     mmio.UART0_CR.write(0x00000000);
     // Setup the GPIO pin 14 && 15.
@@ -60,7 +62,27 @@ pub fn putc(c: u8) void {
     mmio.UART0_DR.write(c);
 }
 
+pub fn puts(s: []const u8) void {
+    for (s) |c| {
+        putc(c);
+    }
+}
+
 pub fn getc() u8 {
     while (mmio.UART0_FR.read() & (1 << 4) != 0) {}
     return mmio.UART0_DR.read();
+}
+
+const NoError = error{};
+const Unit = struct {};
+
+fn writeFn(_: Unit, b: []const u8) NoError!usize {
+    puts(b);
+    return b.len;
+}
+
+pub fn printf(comptime fmt: []const u8, args: anytype) void {
+    var writer: std.io.Writer(Unit, NoError, writeFn) = .{ .context = .{} };
+    // XXX: maybe use std.io.Writer()
+    std.fmt.format(writer, fmt, args) catch panic.panic("printf failed");
 }

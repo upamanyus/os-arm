@@ -1,18 +1,16 @@
 const uart = @import("uart.zig");
-
-// pub fn comptime_init() void {
-// comptime {
-// // call init for all the different subsystems
-// uart.comptime_init()
-// }
-// }
+const kmem = @import("kmem.zig");
+const panic = @import("panic.zig");
+const mem_layout = @import("mem_layout.zig");
 
 export fn kmain() void {
-    uart.uart_init();
-    uart.putc('H');
-    uart.putc('e');
-    uart.putc('l');
-    uart.putc('l');
-    uart.putc('o');
-    uart.putc('\n');
+    uart.init();
+    uart.puts("Serial initialized\n");
+    // uart.printf("kmem_end = {0x}\n", mem_layout.kern_end);
+    uart.printf("kmem_end = {0x}\n", .{@ptrToInt(&mem_layout.__kern_end)});
+    // uart.puts("Initializing kmem\n");
+    kmem.init();
+    uart.puts("Done initializing kmem\n");
+    uart.puts("Hello world!\n");
+    panic.panic("end of kmain\n");
 }
