@@ -1,0 +1,3 @@
+When trying to get qemu to boot the zig kernel, I noticed that a const variable
+"mbox_clockrate" was being put in an elf section called "rodata.mbox_clockrate".
+In contrast, the gcc compiled code does not have this.

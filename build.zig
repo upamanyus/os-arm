@@ -2,13 +2,13 @@ const Builder = @import("std").build.Builder;
 const std = @import("std");
 
 pub fn build(b: *Builder) void {
-    const kernel = b.addExecutable("kernel", "kmain.zig");
+    const kernel = b.addExecutable("kernel8.elf", "kmain.zig");
     kernel.setOutputDir("build");
 
     kernel.addAssemblyFile("arch/aarch64/start.S");
 
     // kernel.setBuildMode(b.standardReleaseOptions());
-    kernel.setBuildMode(std.builtin.Mode.ReleaseSafe);
+    kernel.setBuildMode(std.builtin.Mode.Debug);
     // NOTE: doing Mode.Debug includes some unused functions in the kernel and
     // bloats the size. ReleaseSafe gets rid of that stuff
 
