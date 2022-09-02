@@ -3,7 +3,7 @@ const mmio = @import("mmio.zig"); // for MMIO_BASE/END
 const panic = @import("panic.zig");
 
 const pgbits = 12;
-const pgsize = (1 << pgbits);
+pub const pgsize = (1 << pgbits);
 
 const Node = struct {
     next: ?*Node,
