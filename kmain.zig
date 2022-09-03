@@ -4,8 +4,12 @@ const panic = @import("panic.zig");
 const mem_layout = @import("mem_layout.zig");
 const kproc = @import("kproc.zig");
 
+const mac = @import("board/rockpiS/mac.zig");
+
 fn main(_: u64) void {
-    uart.puts("Entered thread!\n");
+    uart.puts("Searching for MAC\n");
+    mac.init();
+    uart.puts("Finished searching for MAC\n");
 }
 
 export fn kmain() void {
