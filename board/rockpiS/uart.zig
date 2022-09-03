@@ -34,6 +34,9 @@ pub fn init() void {
 }
 
 pub fn putc(c: u8) void {
+    if (c == '\n') { // XXX: handle newlines properly
+        putc('\r');
+    }
     while (UART0_LSR.read() >> 5 & 0x1 == 0) {} // loop while THR non-empty
     UART0_THR.write(c);
 }
