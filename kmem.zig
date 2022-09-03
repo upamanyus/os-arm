@@ -1,5 +1,4 @@
 const mem_layout = @import("mem_layout.zig");
-const mmio = @import("mmio.zig"); // for MMIO_BASE/END
 const panic = @import("panic.zig");
 
 const pgbits = 12;
@@ -13,14 +12,10 @@ var freelist: ?*Node = null;
 
 pub fn init() void {
     // allocate single pages until curr_page is aligned with 16KB boundary
-    // var addr: usize = mem_layout.kern_end;
-    var addr: usize = @ptrToInt(&mem_layout.__kern_end);
+    mem_layout.init();
 
-    while (addr + pgsize < mmio.MMIO_BASE) {
-        free(addr);
-        addr += pgsize;
-    }
-    addr = mmio.MMIO_END;
+    var addr: usize = mem_layout.start;
+
     while (addr + pgsize < mem_layout.end) {
         free(addr);
         addr += pgsize;

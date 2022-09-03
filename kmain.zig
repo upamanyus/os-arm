@@ -4,7 +4,9 @@ const panic = @import("panic.zig");
 const mem_layout = @import("mem_layout.zig");
 const kproc = @import("kproc.zig");
 
-fn main(_: u64) void {}
+fn main(_: u64) void {
+    uart.puts("Entered thread!\n");
+}
 
 export fn kmain() void {
     uart.init();

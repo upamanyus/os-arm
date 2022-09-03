@@ -1,0 +1,45 @@
+Problems/annoyances with Zig:
+
+= External symbols
+This code is OK:
+```
+pub extern var __kern_end: [*]u8;
+fn foo void {
+    @ptrToInt(&__kern_end);
+}
+```
+But this isn't:
+```
+pub extern var __kern_end: [*]u8;
+pub var kern_end = &__kern_end; // BAD
+pub var kern_end = @ptrToInt(&__kern_end); // BAD
+```
+
+This was seemingly somewhat fixed two years ago in
+https://github.com/ziglang/zig/pull/5349
+
+but then revereted due to failing tests, and never revisited.
+
+
+= Function pointers
+
+If we have
+fn someF() void {
+    std.log.info("someF ran\n", .{});
+},
+then &someF is NOT the location of the function.
+E.g. if some assembly code is going to jump to an address, @ptrToInt(&someF) is
+the wrong address. Instead, just @ptrToInt(someF) is the right one.
+
+To be honest, I'm not even sure what &someF means. It kinda seems like an
+expression like &&some_var.
+
+fn callF(f: (*const fn () void)) void {
+    std.log.info("fn = 0x{0x}", .{@ptrToInt(f)});
+    std.log.info("fn = 0x{0x}", .{@ptrToInt(f.*)});
+    (f.*)();
+}
+
+= Project-relative imports
+Can't import files relative to the project's root.
+Instead, have to type "../../arch/aarch64/util.zig"
