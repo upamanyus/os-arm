@@ -43,3 +43,8 @@ fn callF(f: (*const fn () void)) void {
 = Project-relative imports
 Can't import files relative to the project's root.
 Instead, have to type "../../arch/aarch64/util.zig"
+
+= Packed struct byte and bit order
+I incorrectly thought that the first thing in a packed struct would be the
+most-significant bits of the u32 that covers the struct. Better documentation
+would be nice.

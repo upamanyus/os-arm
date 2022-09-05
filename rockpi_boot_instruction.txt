@@ -1,0 +1,3 @@
+loady 0x800000
+<send file: C-a C-s, then type in "kernel8.img" and wait>
+go 0x800000
