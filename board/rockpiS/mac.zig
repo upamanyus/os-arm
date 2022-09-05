@@ -70,7 +70,7 @@ fn mac_reset() void {
     // set 1, sleep(delays[0])
     GPIO0_SWPORTA_DDR.write(1 << 7);
     GPIO0_SWPORTA_DR.write(1 << 7);
-    delay.delay(0 * 1e6);
+    // delay.delay(0 * 1e6);
 
     // set 0, sleep(delays[1])
     GPIO0_SWPORTA_DDR.write(1 << 7);
