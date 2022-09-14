@@ -21,9 +21,13 @@ export fn kmain() void {
     kmem.init();
     uart.puts("Done initializing kmem\n");
     uart.puts("Initializing kproc\n");
-    kproc.init();
-    kproc.spawn(main, 0);
-    kproc.schedulerLoop();
+
+    // FIXME: there seems to a some bug here
+    // kproc.init();
+    // kproc.spawn(main, 0);
+    // kproc.schedulerLoop();
+
+    main(0);
 
     uart.puts("Done initializing kproc\n");
     panic.panic("end of kmain\n");

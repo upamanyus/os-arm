@@ -97,21 +97,33 @@ fn pin_init() void {
 
     // FIXME: try configuring even more GPIO pins based on 23.5 of TRM.
 
-    // set GPIO pin functionality to be MDIO
+    // Set pin muxes for MAC
 
-    // GRF_GPIO1B_IOMUX_L[15:12]=0b0011 for MAC_MDIO
-    // GRF_GPIO1B_IOMUX_L[11:10]=0b11 MAC_MDC
     // GRF_GPIO1B_IOMUX_L[9:8]=0b11 for MAC_CLK
+    // GRF_GPIO1B_IOMUX_L[11:10]=0b11 MAC_MDC
+    // GRF_GPIO1B_IOMUX_L[15:12]=0b0011 for MAC_MDIO
     const old_val = GRF_GPIO1B_IOMUX_L.read();
-    if (old_val == 0) {
-        const new_val = (old_val) | (0b11 << 8) | (0b0011 << 12) | (0b11 << 10);
-        GRF_GPIO1B_IOMUX_L.write(new_val << 16 | new_val); // XXX: upper 16 are write enable bits
-        uart.printf("Set up GPIO pins {0x}\n", .{
-            GRF_GPIO1B_IOMUX_L.read(),
-        });
-    } else {
+    if (old_val != 0) {
         panic.panic("unexpected GPIO config\n");
     }
+    const new_val = (old_val) | (0b11 << 8) | (0b0011 << 12) | (0b11 << 10);
+    GRF_GPIO1B_IOMUX_L.write(new_val << 16 | new_val); // XXX: upper 16 are write enable bits
+    uart.printf("Set up GPIO pins {0x}\n", .{
+        GRF_GPIO1B_IOMUX_L.read(),
+    });
+
+    // 1C_L[3:2] = 0b11
+    // 1C_L[6:4] = 0b11
+    const old_val = GRF_GPIO1C_IOMUX_L.read();
+    if (old_val != 0) {
+        panic.panic("unexpected GPIO config\n");
+    }
+    const new_val = (old_val) | (0b11 << 8) | (0b0011 << 12) | (0b11 << 10);
+    GRF_GPIO1B_IOMUX_L.write(new_val << 16 | new_val); // XXX: upper 16 are write enable bits
+    uart.printf("Set up GPIO pins {0x}\n", .{
+        GRF_GPIO1B_IOMUX_L.read(),
+    });
+    // Finish setting MUX states
 
     // XXX;: set GPIO pull-up/down state to "Z"; I think that means "bias-disable"
     // in dts terminology?
@@ -131,29 +143,8 @@ fn pin_init() void {
 pub fn init() void {
     pin_init();
 
-    MAC_GMII_ADDR.write(MiiAddrVal{
-        .phy_addr = 1,
-        .reg_addr = 1,
-        .cr = .s60_100,
-        .is_write = 0,
-        .is_busy = 0,
-    });
-
-    if (false) {
-        // dump all regs starting at base
-        var i: usize = 0;
-        while (i < 0x100) : (i += 0x4) {
-            const p = @intToPtr(*volatile u32, (base + i));
-            uart.printf("0x{0x} = 0x{1x}", .{ base + i, p.* });
-            p.* = 0xdeadbeef;
-            if (i == 0x10) {
-                uart.printf("(→ 0x{0x})", .{MAC_GMII_ADDR.raw_read()});
-            }
-            uart.printf("→ 0x{0x}|\n", .{p.*});
-        }
-    }
-
-    const clks = [_]@Type(.EnumLiteral){ .s60_100, .s100_150, .s20_35, .s35_60, .s150_200, .s250_300 };
+    // const clks = [_]@Type(.EnumLiteral){ .s60_100, .s100_150, .s20_35, .s35_60, .s150_200, .s250_300 };
+    const clks = [_]@Type(.EnumLiteral){.s60_100};
 
     // TODO: set the pclk_MAC rate correctly
     inline for (clks) |clk_range| {
@@ -165,5 +156,99 @@ pub fn init() void {
             }
             uart.puts("\n");
         }
+    }
+
+    uart.puts("Starting send message\n");
+    setup_and_send_one();
+}
+
+const TxDescriptor0 = packed struct {
+    deferred_bit: u1 = 0,
+    err_underflow: u1 = 0,
+    err_excessive_deferral: u1 = 0,
+    collision_count: u4 = 0,
+    vlan_frame: u1 = 0,
+
+    err_excessive_collision: u1 = 0,
+    err_late_collision: u1 = 0,
+    err_no_carrier: u1 = 0,
+    err_loss_of_carrier: u1 = 0,
+    err_payload_checksum: u1 = 0,
+    err_frame_flushed: u1 = 0,
+    err_jabber_timeout: u1 = 0,
+    err_summary: u1 = 0,
+    ip_header_err: u1 = 0,
+
+    _reserved: u14 = 0,
+    dma_own: u1 = 0, // true iff DMA owns this descriptor
+};
+
+const TxDescriptor1 = packed struct {
+    transmit_buffer1_size: u11 = 0,
+    transmit_buffer2_size: u11 = 0,
+    _reserved: u1 = 0,
+    disable_padding: u1 = 0,
+    second_addr_chained: u1 = 0,
+    end_of_ring: u1 = 0,
+    disable_crc: u1 = 0,
+    checksum_insertion_control: u2 = 0,
+    first_segment: u1 = 0,
+    last_segment: u1 = 0,
+    interrupt_on_completion: u1 = 0,
+};
+
+const TxDescriptor = packed struct {
+    d0: TxDescriptor0 = TxDescriptor0{},
+    d1: TxDescriptor1 = TxDescriptor1{},
+    buffer1_addr: u32 = 0,
+    buffer2_addr: u32 = 0,
+};
+
+const MAC_TX_DESC_LIST_ADDR = mmio.RawRegister.init(base + 0x1010);
+
+const MacOpModeVal = packed struct {
+    _unused: u13 = 0,
+    start_transmit: u1 = 0,
+    _unused2: u18 = 0,
+};
+
+const MAC_OP_MODE = mmio.Register(MacOpModeVal).init(base + 0x1018);
+
+comptime {
+    if (@bitSizeOf(TxDescriptor0) != @bitSizeOf(u32)) {
+        @compileError("TxDesc0 not sized correctly");
+    }
+
+    if (@bitSizeOf(TxDescriptor1) != @bitSizeOf(u32)) {
+        @compileError("TxDesc1 not sized correctly");
+    }
+}
+
+pub fn setup_and_send_one() void {
+    // TODO: Set up pins
+    // TODO: Align TxDescriptor to bus width
+    var tx_descs: [1]TxDescriptor = .{TxDescriptor{}};
+
+    // Set up message being sent. Make it sequentially increasing bytes. Will
+    // make this a valid ethernet frame later.
+    for (tx_msg) |*b, i| {
+        b.* = @intCast(u8, i);
+    }
+
+    // Set up TX descriptor ring. Need to set "end of ring" on last one.
+    tx_descs[0].d1.end_of_ring = 1;
+    tx_descs[0].buffer1_addr = @intCast(u32, @ptrToInt(&tx_msg));
+    tx_descs[0].buffer1_addr = 0;
+    tx_descs[0].d1.transmit_buffer1_size = 1024;
+    tx_descs[0].d0.dma_own = 1;
+
+    // Tell MAC where to find TX descriptors
+    MAC_TX_DESC_LIST_ADDR.write(@intCast(u32, @ptrToInt(&tx_descs)));
+
+    // Enable MAC TX DMA.
+    MAC_OP_MODE.write(.{ .start_transmit = 1 });
+    uart_puts("Finished sending message");
+    while (true) {
+        uart_printf();
     }
 }
