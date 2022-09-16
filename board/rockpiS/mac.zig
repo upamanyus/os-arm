@@ -2,6 +2,7 @@ const uart = @import("../../uart.zig");
 const mmio = @import("../../mmio.zig");
 const panic = @import("../../panic.zig");
 const delay = @import("../../arch/aarch64/delay.zig");
+const kmem = @import("../../kmem.zig");
 
 const base = 0xff4e0000; // takes up 64K bytes
 
@@ -49,6 +50,10 @@ pub fn read_mii(comptime clk_range: @Type(.EnumLiteral), phy: u5, reg: u5) u16 {
 
 const grf_base = 0xFF000000;
 var GRF_GPIO1B_IOMUX_L = mmio.RawRegister.init(grf_base + 0x0028);
+var GRF_GPIO1B_IOMUX_H = mmio.RawRegister.init(grf_base + 0x002c);
+var GRF_GPIO1C_IOMUX_L = mmio.RawRegister.init(grf_base + 0x0030);
+var GRF_GPIO1C_IOMUX_H = mmio.RawRegister.init(grf_base + 0x0034);
+
 var GRF_GPIO1B_P = mmio.RawRegister.init(grf_base + 0x00b4);
 var GRF_MAC_CON0 = mmio.RawRegister.init(grf_base + 0x04a0);
 var GRF_GPIO1B_E = mmio.RawRegister.init(grf_base + 0x0114);
@@ -102,27 +107,48 @@ fn pin_init() void {
     // GRF_GPIO1B_IOMUX_L[9:8]=0b11 for MAC_CLK
     // GRF_GPIO1B_IOMUX_L[11:10]=0b11 MAC_MDC
     // GRF_GPIO1B_IOMUX_L[15:12]=0b0011 for MAC_MDIO
-    const old_val = GRF_GPIO1B_IOMUX_L.read();
+    var old_val = GRF_GPIO1B_IOMUX_L.read();
     if (old_val != 0) {
         panic.panic("unexpected GPIO config\n");
     }
-    const new_val = (old_val) | (0b11 << 8) | (0b0011 << 12) | (0b11 << 10);
+    var new_val = (old_val) | (0b11 << 8) | (0b0011 << 12) | (0b11 << 10);
     GRF_GPIO1B_IOMUX_L.write(new_val << 16 | new_val); // XXX: upper 16 are write enable bits
-    uart.printf("Set up GPIO pins {0x}\n", .{
-        GRF_GPIO1B_IOMUX_L.read(),
-    });
+    uart.printf("Set up MUX_GPIO1B_L {0x}\n", .{GRF_GPIO1B_IOMUX_L.read()});
 
-    // 1C_L[3:2] = 0b11
-    // 1C_L[6:4] = 0b11
-    const old_val = GRF_GPIO1C_IOMUX_L.read();
+    // 1C_L[3:2] = 0b11 (MAC_TXEN)
+    // 1C_L[6:4] = 0b011 (MAC_TXD1)
+    // 1C_L[10:8] = 0b011 (MAC_TXD0)
+    // 1C_L[1:0] = 0b11 (MAC_RXDV)
+    // 1C_L[14:12] = 0b011 (MAC_RXD0)
+    old_val = GRF_GPIO1C_IOMUX_L.read();
     if (old_val != 0) {
         panic.panic("unexpected GPIO config\n");
     }
-    const new_val = (old_val) | (0b11 << 8) | (0b0011 << 12) | (0b11 << 10);
-    GRF_GPIO1B_IOMUX_L.write(new_val << 16 | new_val); // XXX: upper 16 are write enable bits
-    uart.printf("Set up GPIO pins {0x}\n", .{
-        GRF_GPIO1B_IOMUX_L.read(),
-    });
+    new_val = (0b11 << 2) | (0b011 << 4) | (0b011 << 8) | (0b11 << 0) | (0b011 << 12);
+    GRF_GPIO1C_IOMUX_L.write(new_val << 16 | new_val); // XXX: upper 16 are write enable bits
+    uart.printf("Set up MUX_GPIO1C_L {0x}\n", .{GRF_GPIO1C_IOMUX_L.read()});
+
+    // 1B_H[2:0] = 0b011 (MAC_RXER)
+    old_val = GRF_GPIO1B_IOMUX_H.read();
+    if (old_val != 0) {
+        panic.panic("unexpected GPIO config\n");
+    }
+    new_val = (0b11 << 0);
+    GRF_GPIO1B_IOMUX_H.write(new_val << 16 | new_val); // XXX: upper 16 are write enable bits
+    uart.printf("Set up MUX_GPIO1B_H {0x}\n", .{GRF_GPIO1B_IOMUX_H.read()});
+
+    // 1C_H[2:0] = 0b011 (MAC_RXD1)
+    // default = 0x00000440
+    old_val = GRF_GPIO1C_IOMUX_H.read();
+    if (old_val != 0x00000440) {
+        // XXX: after uboot, we actually end up getting 220
+        uart.printf("Got GPIO1C_IOMUX_H = {0x:8}, but still continuing \n", .{old_val});
+        // panic.panic("unexpected GPIO config\n");
+    }
+    new_val = (0b11 << 0);
+    GRF_GPIO1C_IOMUX_H.write(new_val << 16 | new_val); // XXX: upper 16 are write enable bits
+    uart.printf("Set up MUX_GPIO1C_H {0x}\n", .{GRF_GPIO1C_IOMUX_H.read()});
+
     // Finish setting MUX states
 
     // XXX;: set GPIO pull-up/down state to "Z"; I think that means "bias-disable"
@@ -214,6 +240,35 @@ const MacOpModeVal = packed struct {
 
 const MAC_OP_MODE = mmio.Register(MacOpModeVal).init(base + 0x1018);
 
+const Bad = packed struct {
+    a: u8 = 0,
+    b: u9 = 0,
+    c: u15 = 0,
+};
+
+// FIXME: if we put the real bit layout here, then zig complains that the packed
+// struct is 5 bytes (while only taking up 32 bits).This is fixed in zig 0.10,
+// but inline assembly is a bit broken in 0.10 as well.
+const MacBusModeVal = packed struct {
+    software_reset: u1 = 0,
+    _unused4: u31 = 0,
+};
+
+const MAC_BUS_MODE = mmio.Register(MacBusModeVal).init(base + 0x1000);
+
+fn soft_reset_mac() void {
+    uart.printf("Initial BUS_MODE: {0x:8}\n", .{MAC_BUS_MODE.raw_read()});
+    MAC_BUS_MODE.write(MacBusModeVal{ .software_reset = 1 });
+    var num_cycles_to_reset: usize = 0;
+    while (MAC_BUS_MODE.read().software_reset == 1) {
+        num_cycles_to_reset += 1;
+    }
+    uart.printf("Reset took {0} cycles\n", .{num_cycles_to_reset});
+    uart.printf("New BUS_MODE: {0x:8}\n", .{MAC_BUS_MODE.raw_read()});
+    // MAC_BUS_MODE.modify(.{ .pbl = 0x8 });
+    uart.puts("MAC reset done\n");
+}
+
 comptime {
     if (@bitSizeOf(TxDescriptor0) != @bitSizeOf(u32)) {
         @compileError("TxDesc0 not sized correctly");
@@ -224,31 +279,45 @@ comptime {
     }
 }
 
+const MAC_STATUS = mmio.RawRegister.init(base + 0x1014);
+
 pub fn setup_and_send_one() void {
-    // TODO: Set up pins
-    // TODO: Align TxDescriptor to bus width
-    var tx_descs: [1]TxDescriptor = .{TxDescriptor{}};
+    soft_reset_mac();
+
+    var tx_msg: usize = kmem.alloc_or_panic();
 
     // Set up message being sent. Make it sequentially increasing bytes. Will
     // make this a valid ethernet frame later.
-    for (tx_msg) |*b, i| {
-        b.* = @intCast(u8, i);
+    var i: usize = 0;
+    while (i < 1024) : (i += 1) {
+        @intToPtr(*u8, (tx_msg + i)).* = @intCast(u8, i & 0xFF);
     }
 
+    const tx_descs_addr = kmem.alloc_or_panic();
+    var tx_descs = @intToPtr([*]volatile TxDescriptor, tx_descs_addr);
+
+    tx_descs[0] = TxDescriptor{}; // zero out
+    uart.printf("TX desc before initing: {0}\n", .{tx_descs[0]});
     // Set up TX descriptor ring. Need to set "end of ring" on last one.
     tx_descs[0].d1.end_of_ring = 1;
-    tx_descs[0].buffer1_addr = @intCast(u32, @ptrToInt(&tx_msg));
-    tx_descs[0].buffer1_addr = 0;
+    tx_descs[0].buffer1_addr = @intCast(u32, tx_msg);
     tx_descs[0].d1.transmit_buffer1_size = 1024;
     tx_descs[0].d0.dma_own = 1;
+    uart.printf("TX desc before sending: {0}\n", .{tx_descs[0]});
 
+    uart.printf("{0x} vs {1x}\n", .{ @ptrToInt(&tx_descs), @ptrToInt(&tx_descs[0]) });
     // Tell MAC where to find TX descriptors
-    MAC_TX_DESC_LIST_ADDR.write(@intCast(u32, @ptrToInt(&tx_descs)));
+    MAC_TX_DESC_LIST_ADDR.write(@intCast(u32, @ptrToInt(tx_descs)));
+    uart.printf("TX desc reg addr: {0x}; tx addr: {1x}\n", .{ MAC_TX_DESC_LIST_ADDR.read(), @ptrToInt(&tx_descs[0]) });
 
+    uart.printf("STATUS before transfer desc: {0x:8}\n", .{MAC_STATUS.read()});
     // Enable MAC TX DMA.
     MAC_OP_MODE.write(.{ .start_transmit = 1 });
-    uart_puts("Finished sending message");
-    while (true) {
-        uart_printf();
+    uart.puts("Finished sending message\n");
+    var done: bool = false;
+    while (!done) {
+        uart.printf("Current TX desc: {0}\n", .{tx_descs[0]});
+        uart.printf("Current STATUS desc: {0x:8}\n", .{MAC_STATUS.read()});
+        done = (tx_descs[0].d0.dma_own == 0);
     }
 }

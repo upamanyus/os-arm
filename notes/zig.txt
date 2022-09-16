@@ -48,3 +48,25 @@ Instead, have to type "../../arch/aarch64/util.zig"
 I incorrectly thought that the first thing in a packed struct would be the
 most-significant bits of the u32 that covers the struct. Better documentation
 would be nice.
+
+= Packed struct alignment + size problems.
+The code
+```
+const Bad = packed struct {
+    a: u8 = 0,
+    b: u9 = 0,
+    c: u15 = 0,
+};
+
+comptime {
+    @compileLog(@bitSizeOf(Bad), @sizeOf(Bad));
+}
+```
+prints out (32, 5). 32 bits but 5 byes! It seems like the sizeOf is 5 because of
+some alignment requirement.
+
+= "%=" stopped working in inline asm
+To fix the packed struct size problem, I downloaded the latest (unreleased)
+version of zig.  Somehow, that messed up the inline asm generation for delay().
+In particular, %= is supposed to give a unique string for each assembly blob.
+But, zig stopped doing anything with it.

@@ -1,5 +1,6 @@
 // XXX: count must not be 0, otherwise this will delay forever.
 pub fn delay(count: u64) void {
+    // FIXME: will there be multiple __delay__ definitions?
     asm volatile ("__delay_%=: subs %[count], %[count], #1; bne __delay_%=\n"
         :
         : [count] "{x8}" (count),
