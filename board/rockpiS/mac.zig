@@ -333,9 +333,12 @@ const cru_base: usize = 0xff500000;
 
 var CRU_CLKSEL_CON43 = mmio.RawRegister.init(cru_base + 0x01ac);
 pub fn set_clk_rate() void {
-    CRU_CLKSEL_CON43.write((0b11111 << 16) | 0x1d);
-    uart.puts("Set mac clock to 25MHz");
+    CRU_CLKSEL_CON43.write((0b11111 << 16) | 0x1d | (1 << 14) | ((1 << 14) << 16));
+    uart.puts("Set mac clock to 25MHz, and rmii_extclk_sel = from CRU\n");
 }
+
+var MAC_CUR_HOST_TX_DESC = mmio.RawRegister.init(base + 0x1048);
+var MAC_CUR_HOST_TX_BUF_ADDR = mmio.RawRegister.init(base + 0x1050);
 
 pub fn setup_and_send_one() void {
     soft_reset_mac();
@@ -350,12 +353,13 @@ pub fn setup_and_send_one() void {
     // setup_packet(tx_msg_ptr);
 
     const tx_descs_addr = kmem.alloc_or_panic();
+
+    uart.printf("Allocated {0x} then {1x}\n", .{ tx_msg, tx_descs_addr });
     var tx_descs = @intToPtr([*]volatile TxDescriptor, tx_descs_addr);
 
     uart.printf("sctrl = {0x}\n", .{get_sctrl()});
 
     tx_descs[0] = TxDescriptor{}; // zero out
-    uart.printf("TX desc before initing: {0}\n", .{tx_descs[0]});
     // Set up TX descriptor ring. Need to set "end of ring" on last one.
     tx_descs[0].tx.end_of_ring = 0;
     tx_descs[0].buffer1_addr = @intCast(u32, tx_msg);
@@ -366,10 +370,9 @@ pub fn setup_and_send_one() void {
     tx_descs[0].tx.last_segment = 1;
     tx_descs[0].tx.dma_own = 1;
 
-    tx_descs[4].tx.end_of_ring = 1;
-    uart.printf("TX desc before sending: {0}\n", .{tx_descs[0]});
+    tx_descs[3].tx.end_of_ring = 1;
+    uart.printf("TX desc value before sending: {0}\n", .{tx_descs[0]});
 
-    uart.printf("{0x} vs {1x}\n", .{ @ptrToInt(&tx_descs), @ptrToInt(&tx_descs[0]) });
     // Tell MAC where to find TX descriptors
     MAC_TX_DESC_LIST_ADDR.write(@intCast(u32, @ptrToInt(tx_descs)));
     uart.printf("TX desc reg addr: {0x}; tx addr: {1x}\n", .{ MAC_TX_DESC_LIST_ADDR.read(), @ptrToInt(&tx_descs[0]) });
@@ -378,8 +381,17 @@ pub fn setup_and_send_one() void {
 
     uart.printf("STATUS before transfer desc: {0x:8}\n", .{MAC_STATUS.read()});
 
+    uart.printf("Before enabling DMA, cur tx desc = {0x}; cur tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
+
     // Enable MAC TX DMA.
     MAC_OP_MODE.write(.{ .start_transmit = 1 });
+    while (true) {
+        const cur_buffer = MAC_CUR_HOST_TX_BUF_ADDR.read();
+        if (cur_buffer != 0) {
+            uart.printf("After enabling TX DMA, first non-zero cur tx buffer = {0x}\n", .{cur_buffer});
+            break;
+        }
+    }
     uart.puts("Enabled transmit DMA\n");
 
     // Enable MAC transmit; TRM says to do this after enabling MAC TX DMA (pg
@@ -401,14 +413,16 @@ pub fn setup_and_send_one() void {
     }
     uart.printf("STATUS after first 1st phase: {0x}\n", .{cur_status});
 
-    var num_cycles2: usize = 0;
-    while ((MAC_STATUS.read() >> 20 & 0b111) == 0b011) : (num_cycles2 += 1) {}
-    uart.printf("{0} iters for fetching descriptor; {1} iters for reading buffer\n", .{
-        num_cycles1, num_cycles2,
-    });
-    uart.printf("STATUS after first 2 phases: {0x}\n", .{MAC_STATUS.read()});
+    uart.printf("After enabling DMA, cur tx desc = {0x}; cur tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
 
-    uart.printf("MAC STATUS right after sending: {0x:8}\n", .{MAC_STATUS.read()});
+    // var num_cycles2: usize = 0;
+    // while ((MAC_STATUS.read() >> 20 & 0b111) == 0b011) : (num_cycles2 += 1) {}
+    // uart.printf("{0} iters for fetching descriptor; {1} iters for reading buffer\n", .{
+    // num_cycles1, num_cycles2,
+    // });
+    // uart.printf("STATUS after first 2 phases: {0x}\n", .{MAC_STATUS.read()});
+    //
+    // uart.printf("MAC STATUS right after sending: {0x:8}\n", .{MAC_STATUS.read()});
 
     uart.puts("Finished starting send message\n");
     var done: bool = false;

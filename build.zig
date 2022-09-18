@@ -9,8 +9,9 @@ pub fn build(b: *Builder) void {
     kernel.addAssemblyFile("arch/aarch64/switch.S");
 
     // kernel.setBuildMode(b.standardReleaseOptions());
-    kernel.setBuildMode(std.builtin.Mode.ReleaseSafe);
-    // kernel.setBuildMode(std.builtin.Mode.ReleaseSmall);
+
+    kernel.setBuildMode(std.builtin.Mode.ReleaseSmall);
+    // kernel.setBuildMode(std.builtin.Mode.ReleaseSafe);
     // NOTE: doing Mode.Debug includes some unused functions in the kernel and
     // bloats the size. ReleaseSafe gets rid of that stuff
 

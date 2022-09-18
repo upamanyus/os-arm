@@ -45,9 +45,10 @@ pub fn free(addr: usize) void {
 // Returns ownership of the page starting at the returned address.
 pub fn alloc() !usize {
     if (freelist) |addr| {
+        freelist = addr.next;
         return @ptrToInt(addr);
     } else {
-        return error.OutOfMemoryy;
+        return error.OutOfMemory;
     }
 }
 
