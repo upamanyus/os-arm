@@ -10,6 +10,7 @@ pub fn build(b: *Builder) void {
 
     // kernel.setBuildMode(b.standardReleaseOptions());
     kernel.setBuildMode(std.builtin.Mode.ReleaseSafe);
+    // kernel.setBuildMode(std.builtin.Mode.ReleaseSmall);
     // NOTE: doing Mode.Debug includes some unused functions in the kernel and
     // bloats the size. ReleaseSafe gets rid of that stuff
 

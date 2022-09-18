@@ -44,6 +44,10 @@ pub fn RWRegister(comptime Read: type, comptime Write: type) type {
             return self.raw_reg.read();
         }
 
+        pub fn raw_write(self: Self, raw_w: u32) void {
+            self.raw_reg.write(raw_w);
+        }
+
         pub fn write(self: Self, w: Write) void {
             self.raw_reg.write(@bitCast(u32, w));
             // uart.printf("0x{0x}\n", .{self.raw_reg.read()});
