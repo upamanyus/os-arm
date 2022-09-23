@@ -21,13 +21,13 @@ const MiiAddrVal = packed struct {
     phy_addr: u5 = 0, // physical layer address (which PHY do we want to access)
     _reserved: u16 = 0,
 };
-const MAC_GMII_ADDR = mmio.Register(MiiAddrVal).init(base + 0x10);
+var MAC_GMII_ADDR = mmio.Register(MiiAddrVal).init(base + 0x10);
 
 const MiiDataVal = packed struct {
     data: u16,
     _reserved: u16 = 0,
 };
-const MAC_GMII_DATA = mmio.Register(MiiDataVal).init(base + 0x14);
+var MAC_GMII_DATA = mmio.Register(MiiDataVal).init(base + 0x14);
 
 // mmio.Register();
 
@@ -170,19 +170,19 @@ pub fn init() void {
     pin_init();
 
     // const clks = [_]@Type(.EnumLiteral){ .s60_100, .s100_150, .s20_35, .s35_60, .s150_200, .s250_300 };
-    const clks = [_]@Type(.EnumLiteral){.s60_100};
+    // const clks = [_]@Type(.EnumLiteral){.s60_100};
 
     // TODO: set the pclk_MAC rate correctly
-    inline for (clks) |clk_range| {
-        uart.puts("\n");
-        for (mii_reg_vals) |*phy_vals, phy| {
-            for (phy_vals.*) |*reg_val, reg| {
-                reg_val.* = read_mii(clk_range, @intCast(u5, phy), @intCast(u5, reg));
-                uart.printf("{0x:4}|", .{reg_val.*});
-            }
-            uart.puts("\n");
-        }
-    }
+    // inline for (clks) |clk_range| {
+    // uart.puts("\n");
+    // for (mii_reg_vals) |*phy_vals, phy| {
+    // for (phy_vals.*) |*reg_val, reg| {
+    // reg_val.* = read_mii(clk_range, @intCast(u5, phy), @intCast(u5, reg));
+    // uart.printf("{0x:4}|", .{reg_val.*});
+    // }
+    // uart.puts("\n");
+    // }
+    // }
 
     uart.puts("Starting send message\n");
     setup_and_send_one();
@@ -256,8 +256,8 @@ const RxDescriptor = packed struct {
     buffer2_addr: u32 = 0,
 };
 
-const MAC_RX_DESC_LIST_ADDR = mmio.RawRegister.init(base + 0x100c);
-const MAC_TX_DESC_LIST_ADDR = mmio.RawRegister.init(base + 0x1010);
+var MAC_RX_DESC_LIST_ADDR = mmio.RawRegister.init(base + 0x100c);
+var MAC_TX_DESC_LIST_ADDR = mmio.RawRegister.init(base + 0x1010);
 
 const MacOpModeVal = packed struct {
     _reserved: u1 = 0,
@@ -267,7 +267,7 @@ const MacOpModeVal = packed struct {
     _unused2: u18 = 0,
 };
 
-const MAC_OP_MODE = mmio.Register(MacOpModeVal).init(base + 0x1018);
+var MAC_OP_MODE = mmio.Register(MacOpModeVal).init(base + 0x1018);
 
 const Bad = packed struct {
     a: u8 = 0,
@@ -283,7 +283,7 @@ const MacBusModeVal = packed struct {
     _unused4: u31 = 0,
 };
 
-const MAC_BUS_MODE = mmio.Register(MacBusModeVal).init(base + 0x1000);
+var MAC_BUS_MODE = mmio.Register(MacBusModeVal).init(base + 0x1000);
 
 fn soft_reset_mac() void {
     uart.printf("Initial BUS_MODE: {0x:8}\n", .{MAC_BUS_MODE.raw_read()});
@@ -318,7 +318,7 @@ comptime {
     }
 }
 
-const MAC_STATUS = mmio.RawRegister.init(base + 0x1014);
+var MAC_STATUS = mmio.RawRegister.init(base + 0x1014);
 
 pub fn setup_packet(p: [*]u8) void {
     var i: usize = 0;
@@ -386,7 +386,7 @@ pub fn setup_rx_desc() usize {
     var rx_descs = @intToPtr([*]volatile RxDescriptor, rx_descs_addr);
     // set up 4 descriptors
     var i: usize = 0;
-    while (i < 4) : (i += 1) {
+    while (i < 8) : (i += 1) {
         rx_descs[i] = RxDescriptor{};
         // rx_descs[i].rx.dma_own = 1;
         // rx_descs[i].rx.disable_interrupt = 1;
@@ -432,113 +432,36 @@ pub fn try_flush_cache() void {
 
 pub fn setup_and_send_one() void {
     soft_reset_mac();
-    // set_clk_rate();
-    // auto_negotiate();
 
-    var tx_msg: usize = kmem.alloc_or_panic();
-
-    // Set up message being sent. Make it sequentially increasing bytes. Will
-    // make this a valid ethernet frame later.
-    // var tx_msg_ptr = @intToPtr([*]u8, tx_msg);
-    // set the mac address
-    // setup_packet(tx_msg_ptr);
-
-    const tx_descs_addr = kmem.alloc_or_panic();
-
-    uart.printf("Allocated {0x} then {1x}\n", .{ tx_msg, tx_descs_addr });
-    var tx_descs = @intToPtr([*]volatile TxDescriptor, tx_descs_addr);
-
-    uart.printf("sctrl = {0x}\n", .{get_sctrl()});
-
-    tx_descs[0] = TxDescriptor{}; // zero out
-    // Set up TX descriptor ring. Need to set "end of ring" on last one.
-    tx_descs[0].tx.end_of_ring = 0;
-    tx_descs[0].buffer1_addr = @intCast(u32, tx_msg);
-    tx_descs[0].buffer2_addr = @intCast(u32, tx_msg);
-    tx_descs[0].tx.transmit_buffer1_size = 1024;
-    tx_descs[0].tx.transmit_buffer2_size = 0;
-    tx_descs[0].tx.first_segment = 1;
-    tx_descs[0].tx.last_segment = 1;
-    tx_descs[0].tx.dma_own = 1;
-
-    tx_descs[3].tx.end_of_ring = 1;
-    uart.printf("TX desc value before sending: {0}\n", .{tx_descs[0]});
-
-    // Tell MAC where to find TX descriptors
-    MAC_TX_DESC_LIST_ADDR.write(@intCast(u32, @ptrToInt(tx_descs)));
-    uart.printf("TX desc reg addr: {0x}; tx addr: {1x}\n", .{ MAC_TX_DESC_LIST_ADDR.read(), @ptrToInt(&tx_descs[0]) });
-    uart.printf("Tx desc0and1 = {0x}\n", .{@intToPtr(*u64, MAC_TX_DESC_LIST_ADDR.read()).*});
-    uart.printf("Tx desc2and3 = {0x}\n", .{@intToPtr(*u64, MAC_TX_DESC_LIST_ADDR.read() + 8).*});
-
-    uart.printf("STATUS before transfer desc: {0x:8}\n", .{MAC_STATUS.read()});
+    // XXX: only having one of these causese RX_BUF_ADDR to stay 0
+    // XXX: having 3 causes the address to be 0xa0_1793
+    // having 4 makes the error go away
+    _ = kmem.alloc_or_panic();
+    _ = kmem.alloc_or_panic();
+    _ = kmem.alloc_or_panic();
+    _ = kmem.alloc_or_panic();
+    _ = kmem.alloc_or_panic();
+    _ = kmem.alloc_or_panic();
 
     // Tell MAC where to find RX descriptors
     const rx_descs_addr = setup_rx_desc();
     MAC_RX_DESC_LIST_ADDR.write(@intCast(u32, rx_descs_addr));
 
-    uart.printf("Before enabling DMA, cur tx desc = {0x}; cur tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
-    uart.printf("Before enabling DMA, cur rx desc = {0x}; cur rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
+    _ = kmem.alloc_or_panic();
+    _ = kmem.alloc_or_panic();
+    _ = kmem.alloc_or_panic();
 
-    // try_flush_cache();
-    // try_flush_cache();
-    // try_flush_cache();
-    // try_flush_cache();
-    // try_flush_cache();
-    // try_flush_cache();
+    uart.printf("Before enabling DMA, cur rx desc = {0x}; cur rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
 
     // Enable MAC TX+RX DMA.
     MAC_OP_MODE.write(.{ .start_transmit = 0, .start_receive = 1 });
     uart.puts("Enabled DMAs\n");
-    while (true) {
-        // const cur_buffer = MAC_CUR_HOST_TX_BUF_ADDR.read();
-        const cur_buffer = MAC_CUR_HOST_RX_BUF_ADDR.read();
-        // const cur_buffer = MAC_TX_DESC_LIST_ADDR.read();
-        if (cur_buffer != 0) {
-            uart.printf("After enabling TX DMA, first non-zero cur tx buffer = {0x}\n", .{cur_buffer});
-            uart.printf("After enabling DMA, cur rx desc = {0x}\n", .{MAC_CUR_HOST_RX_DESC.read()});
-            uart.printf("After enabling DMA, cur rx buffer = {0x}\n", .{MAC_CUR_HOST_RX_BUF_ADDR.read()});
-            break;
-        }
-    }
+
+    uart.printf("After enabling DMA, rx desc list = {0x}\n", .{MAC_RX_DESC_LIST_ADDR.read()});
+    uart.printf("After enabling DMA, cur rx desc = {0x}\n", .{MAC_CUR_HOST_RX_DESC.read()});
+    uart.printf("After enabling DMA, cur rx buffer = {0x}\n", .{MAC_CUR_HOST_RX_BUF_ADDR.read()});
+
     uart.puts("Enabled transmit DMA\n");
-    uart.printf("RxDesc0 {0x}, ", .{@intToPtr(*volatile u64, rx_descs_addr).*});
-    uart.printf("RxDesc1 {0x}\n", .{@intToPtr(*volatile u64, rx_descs_addr + 8).*});
-
-    // Enable MAC transmit; TRM says to do this after enabling MAC TX DMA (pg
-    // 522).
-    var old_val = MAC_MAC_CONF.read();
-    MAC_MAC_CONF.write(old_val | (1 << 3) | (1 << 2));
-    uart.puts("Enabled transmit in MAC_MAC_CONF; about to demand TX poll\n");
-
-    MAC_TX_POLL_DEMAND.write(0x0);
-
-    var cur_status: u32 = 0;
-    var num_cycles1: usize = 0;
-    while (true) {
-        cur_status = MAC_STATUS.read();
-        if ((cur_status >> 20 & 0b111) != 0b001) {
-            break;
-        }
-        num_cycles1 += 1;
-    }
-    uart.printf("STATUS after first 1st phase: {0x}\n", .{cur_status});
-
-    uart.printf("After enabling DMA, cur tx desc = {0x}; cur tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
-
-    // var num_cycles2: usize = 0;
-    // while ((MAC_STATUS.read() >> 20 & 0b111) == 0b011) : (num_cycles2 += 1) {}
-    // uart.printf("{0} iters for fetching descriptor; {1} iters for reading buffer\n", .{
-    // num_cycles1, num_cycles2,
-    // });
-    // uart.printf("STATUS after first 2 phases: {0x}\n", .{MAC_STATUS.read()});
-    //
-    // uart.printf("MAC STATUS right after sending: {0x:8}\n", .{MAC_STATUS.read()});
-
-    uart.puts("Finished starting send message\n");
-    var done: bool = false;
-    while (!done) {
-        uart.printf("Current TX desc: {0}\n", .{tx_descs[0]});
-        uart.printf("Current STATUS desc: {0x:8}\n", .{MAC_STATUS.read()});
-        done = (tx_descs[0].tx.dma_own == 0);
-    }
+    uart.printf("RxDesc0 = {0x}, ", .{@intToPtr(*volatile u64, rx_descs_addr).*});
+    uart.printf("RxDesc1 = {0x}\n", .{@intToPtr(*volatile u64, rx_descs_addr + 8).*});
 }

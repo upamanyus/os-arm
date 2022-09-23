@@ -19,9 +19,6 @@ pub fn init() void {
     // uart.printf("Setting up linked list from 0x{0x} to 0x{1x}\n\r", .{ mem_layout.start, mem_layout.end });
 
     while (addr + pgsize < mem_layout.end) {
-        if ((addr / pgsize) % 1024 == 0) {
-            // uart.printf("Setting up page at 0x{0x}MB\n\r", .{addr / (1024 * 1024)});
-        }
         free(addr);
         addr += pgsize;
     }
@@ -46,6 +43,13 @@ pub fn free(addr: usize) void {
 pub fn alloc() !usize {
     if (freelist) |addr| {
         freelist = addr.next;
+        // zero out the page
+        var i: usize = 0;
+        while (i < pgsize) {
+            @intToPtr(*volatile u64, @ptrToInt(addr) + i).* = 0;
+            i += 8;
+        }
+
         return @ptrToInt(addr);
     } else {
         return error.OutOfMemory;
