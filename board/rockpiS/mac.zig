@@ -98,7 +98,7 @@ fn pin_init() void {
     GRF_MAC_CON0.write((0b100 << 2) | (0b111 << (2 + 16)) | (1) | (1 << 16));
     uart.printf("new GRF_MAC_CON0 = 0x{0x}\n", .{GRF_MAC_CON0.read()});
 
-    MAC_MAC_CONF.write(1 << 15 | 1 << 8); // 15 = port-select, MII; 8 = "link up"
+    MAC_MAC_CONF.write(1 << 15 | 1 << 14 | 1 << 8); // 15 = port-select, MII; 8 = "link up"; 14 = 100Mpbs
 
     // FIXME: try configuring even more GPIO pins based on 23.5 of TRM.
 
@@ -231,10 +231,38 @@ const TxDescriptor = packed struct {
     buffer2_addr: u32 = 0,
 };
 
+const RxDescriptor0and1 = packed struct {
+    // RDES0
+    _unspecified1: u16 = 0,
+    frame_length: u14 = 0,
+    dst_filter_fail: u1 = 0,
+    dma_own: u1 = 0, // true iff DMA owns this descriptor
+
+    // TDES1
+    buffer1_size: u11 = 0,
+    buffer2_size: u11 = 0,
+    _reserved: u2 = 0,
+    second_addr_chained: u1 = 0,
+    end_of_ring: u1 = 0,
+    _reserved2: u5 = 0,
+    disable_interrupt: u1 = 0,
+};
+
+const RxDescriptor = packed struct {
+    rx: RxDescriptor0and1 = RxDescriptor0and1{},
+
+    // these together should make a u64
+    buffer1_addr: u32 = 0,
+    buffer2_addr: u32 = 0,
+};
+
+const MAC_RX_DESC_LIST_ADDR = mmio.RawRegister.init(base + 0x100c);
 const MAC_TX_DESC_LIST_ADDR = mmio.RawRegister.init(base + 0x1010);
 
 const MacOpModeVal = packed struct {
-    _unused: u13 = 0,
+    _reserved: u1 = 0,
+    start_receive: u1 = 0,
+    _unused: u11 = 0,
     start_transmit: u1 = 0,
     _unused2: u18 = 0,
 };
@@ -272,6 +300,8 @@ fn soft_reset_mac() void {
     uart.printf("New BUS_MODE: {0x:8}\n", .{MAC_BUS_MODE.raw_read()});
     // MAC_BUS_MODE.modify(.{ .pbl = 0x8 });
     uart.puts("MAC reset done\n");
+
+    uart.printf("Post soft-reset GRF_MAC_CON0 = 0x{0x}\n", .{GRF_MAC_CON0.read()});
 }
 
 comptime {
@@ -338,7 +368,25 @@ pub fn set_clk_rate() void {
 }
 
 var MAC_CUR_HOST_TX_DESC = mmio.RawRegister.init(base + 0x1048);
+var MAC_CUR_HOST_RX_DESC = mmio.RawRegister.init(base + 0x104c);
 var MAC_CUR_HOST_TX_BUF_ADDR = mmio.RawRegister.init(base + 0x1050);
+var MAC_CUR_HOST_RX_BUF_ADDR = mmio.RawRegister.init(base + 0x1054);
+
+// returns a pointer to the beginning of RX_DESC_LIST
+pub fn setup_rx_desc() usize {
+    const rx_descs_addr = kmem.alloc_or_panic();
+    var rx_descs = @intToPtr([*]volatile RxDescriptor, rx_descs_addr);
+    // set up 4 descriptors
+    var i: usize = 0;
+    while (i < 4) : (i += 1) {
+        rx_descs[i].rx.dma_own = 1;
+        rx_descs[i].rx.disable_interrupt = 1;
+        rx_descs[i].buffer1_addr = @intCast(u32, kmem.alloc_or_panic());
+        rx_descs[i].rx.buffer1_size = 1024;
+    }
+    rx_descs[3].rx.end_of_ring = 1;
+    return rx_descs_addr;
+}
 
 pub fn setup_and_send_one() void {
     soft_reset_mac();
@@ -382,13 +430,19 @@ pub fn setup_and_send_one() void {
     uart.printf("STATUS before transfer desc: {0x:8}\n", .{MAC_STATUS.read()});
 
     uart.printf("Before enabling DMA, cur tx desc = {0x}; cur tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
+    uart.printf("Before enabling DMA, cur rx desc = {0x}; cur rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
+
+    // Tell MAC where to find RX descriptors
+    const rx_descs_addr = setup_rx_desc();
+    MAC_RX_DESC_LIST_ADDR.write(@intCast(u32, rx_descs_addr));
 
     // Enable MAC TX DMA.
-    MAC_OP_MODE.write(.{ .start_transmit = 1 });
+    MAC_OP_MODE.write(.{ .start_transmit = 1, .start_receive = 1 });
     while (true) {
         const cur_buffer = MAC_CUR_HOST_TX_BUF_ADDR.read();
         if (cur_buffer != 0) {
             uart.printf("After enabling TX DMA, first non-zero cur tx buffer = {0x}\n", .{cur_buffer});
+            uart.printf("After enabling DMA, cur rx buffer = {0x}\n", .{MAC_CUR_HOST_RX_BUF_ADDR.read()});
             break;
         }
     }
@@ -397,7 +451,7 @@ pub fn setup_and_send_one() void {
     // Enable MAC transmit; TRM says to do this after enabling MAC TX DMA (pg
     // 522).
     var old_val = MAC_MAC_CONF.read();
-    MAC_MAC_CONF.write(old_val | (1 << 3));
+    MAC_MAC_CONF.write(old_val | (1 << 3) | (1 << 2));
     uart.puts("Enabled transmit in MAC_MAC_CONF; about to demand TX poll\n");
 
     MAC_TX_POLL_DEMAND.write(0x0);
