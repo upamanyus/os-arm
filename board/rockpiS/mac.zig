@@ -62,7 +62,7 @@ var SYNOPSYS_ID = mmio.RawRegister.init(base + 0x20);
 
 var MAC_MAC_CONF = mmio.RawRegister.init(base + 0x0);
 
-fn mac_reset() void {
+fn phy_reset() void {
     var gpio0_base: usize = 0xff220000;
     var GPIO0_SWPORTA_DR = mmio.RawRegister.init(gpio0_base + 0x0);
     var GPIO0_SWPORTA_DDR = mmio.RawRegister.init(gpio0_base + 0x4);
@@ -89,7 +89,7 @@ fn mac_reset() void {
 }
 
 fn pin_init() void {
-    mac_reset();
+    phy_reset();
 
     uart.printf("Synopsys ID: 0x{0x}\n", .{SYNOPSYS_ID.read()});
 
@@ -292,9 +292,11 @@ fn soft_reset_mac() void {
     while (MAC_BUS_MODE.read().software_reset == 1) {
         num_cycles_to_reset += 1;
     }
+
     // set 8xPBL_MODE (bit 24); set "fixed burst" mode (bit 16);
     // sets pbl = 8 (bits [13:8])
-    MAC_BUS_MODE.raw_write(MAC_BUS_MODE.raw_read() | (1 << 16) | (1 << 24) | (8 << 8));
+    // MAC_BUS_MODE.raw_write(MAC_BUS_MODE.raw_read() | (1 << 16) | (1 << 24) | (8 << 8));
+    // MAC_BUS_MODE.raw_write(MAC_BUS_MODE.raw_read() | (1 << 16) | (1 << 24) | (8 << 8));
 
     uart.printf("Reset took {0} cycles\n", .{num_cycles_to_reset});
     uart.printf("New BUS_MODE: {0x:8}\n", .{MAC_BUS_MODE.raw_read()});
@@ -307,6 +309,12 @@ fn soft_reset_mac() void {
 comptime {
     if (@bitSizeOf(TxDescriptor0and1) != @bitSizeOf(u64)) {
         @compileError("TxDesc0and1 not sized correctly");
+    }
+}
+
+comptime {
+    if (@bitSizeOf(RxDescriptor0and1) != @bitSizeOf(u64)) {
+        @compileError("RxDesc0and1 not sized correctly");
     }
 }
 
@@ -379,18 +387,53 @@ pub fn setup_rx_desc() usize {
     // set up 4 descriptors
     var i: usize = 0;
     while (i < 4) : (i += 1) {
-        rx_descs[i].rx.dma_own = 1;
-        rx_descs[i].rx.disable_interrupt = 1;
-        rx_descs[i].buffer1_addr = @intCast(u32, kmem.alloc_or_panic());
-        rx_descs[i].rx.buffer1_size = 1024;
+        rx_descs[i] = RxDescriptor{};
+        // rx_descs[i].rx.dma_own = 1;
+        // rx_descs[i].rx.disable_interrupt = 1;
+        // rx_descs[i].buffer1_addr = @intCast(u32, kmem.alloc_or_panic());
+        uart.printf("RX buffer = {0x}\n", .{rx_descs[i].buffer1_addr});
+        // rx_descs[i].rx.buffer1_size = 1024;
     }
     rx_descs[3].rx.end_of_ring = 1;
     return rx_descs_addr;
 }
 
+var MAC_AN_CTRL = mmio.RawRegister.init(base + 0x00c0);
+var MAC_AN_STATUS = mmio.RawRegister.init(base + 0x00c4);
+var MAC_AN_ADV = mmio.RawRegister.init(base + 0x00c8);
+var MAC_INTF_MODE_STA = mmio.RawRegister.init(base + 0x00d8);
+
+pub fn auto_negotiate() void {
+    // start negotiation
+    uart.puts("About to start auto-negotiation\n");
+    uart.printf("Got {0x} from autonegotiation initially\n", .{MAC_AN_STATUS.read()});
+    uart.printf("Got {0x} from advertise register initially\n", .{MAC_AN_ADV.read()});
+    MAC_AN_CTRL.write(1 << 12);
+
+    if (false) {
+        var num_iters: usize = 0;
+        while (true) : (num_iters += 1) {
+            const status = MAC_AN_STATUS.read();
+            uart.printf("Got {0x} from autonegotiation after {1} iters\n", .{ status, num_iters });
+            if (status & (1 << 5) == 1) {
+                break;
+            }
+        }
+    }
+}
+
+pub fn try_flush_cache() void {
+    const random_page = kmem.alloc_or_panic();
+    var i: usize = 0;
+    while (i < 4096) : (i += 8) {
+        @intToPtr(*volatile u64, random_page + i).* = i;
+    }
+}
+
 pub fn setup_and_send_one() void {
     soft_reset_mac();
-    set_clk_rate();
+    // set_clk_rate();
+    // auto_negotiate();
 
     var tx_msg: usize = kmem.alloc_or_panic();
 
@@ -429,24 +472,37 @@ pub fn setup_and_send_one() void {
 
     uart.printf("STATUS before transfer desc: {0x:8}\n", .{MAC_STATUS.read()});
 
-    uart.printf("Before enabling DMA, cur tx desc = {0x}; cur tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
-    uart.printf("Before enabling DMA, cur rx desc = {0x}; cur rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
-
     // Tell MAC where to find RX descriptors
     const rx_descs_addr = setup_rx_desc();
     MAC_RX_DESC_LIST_ADDR.write(@intCast(u32, rx_descs_addr));
 
-    // Enable MAC TX DMA.
-    MAC_OP_MODE.write(.{ .start_transmit = 1, .start_receive = 1 });
+    uart.printf("Before enabling DMA, cur tx desc = {0x}; cur tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
+    uart.printf("Before enabling DMA, cur rx desc = {0x}; cur rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
+
+    // try_flush_cache();
+    // try_flush_cache();
+    // try_flush_cache();
+    // try_flush_cache();
+    // try_flush_cache();
+    // try_flush_cache();
+
+    // Enable MAC TX+RX DMA.
+    MAC_OP_MODE.write(.{ .start_transmit = 0, .start_receive = 1 });
+    uart.puts("Enabled DMAs\n");
     while (true) {
-        const cur_buffer = MAC_CUR_HOST_TX_BUF_ADDR.read();
+        // const cur_buffer = MAC_CUR_HOST_TX_BUF_ADDR.read();
+        const cur_buffer = MAC_CUR_HOST_RX_BUF_ADDR.read();
+        // const cur_buffer = MAC_TX_DESC_LIST_ADDR.read();
         if (cur_buffer != 0) {
             uart.printf("After enabling TX DMA, first non-zero cur tx buffer = {0x}\n", .{cur_buffer});
+            uart.printf("After enabling DMA, cur rx desc = {0x}\n", .{MAC_CUR_HOST_RX_DESC.read()});
             uart.printf("After enabling DMA, cur rx buffer = {0x}\n", .{MAC_CUR_HOST_RX_BUF_ADDR.read()});
             break;
         }
     }
     uart.puts("Enabled transmit DMA\n");
+    uart.printf("RxDesc0 {0x}, ", .{@intToPtr(*volatile u64, rx_descs_addr).*});
+    uart.printf("RxDesc1 {0x}\n", .{@intToPtr(*volatile u64, rx_descs_addr + 8).*});
 
     // Enable MAC transmit; TRM says to do this after enabling MAC TX DMA (pg
     // 522).
