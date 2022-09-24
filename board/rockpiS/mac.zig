@@ -21,13 +21,13 @@ const MiiAddrVal = packed struct {
     phy_addr: u5 = 0, // physical layer address (which PHY do we want to access)
     _reserved: u16 = 0,
 };
-const MAC_GMII_ADDR = mmio.Register(MiiAddrVal).init(base + 0x10);
+var MAC_GMII_ADDR = mmio.Register(MiiAddrVal).init(base + 0x10);
 
 const MiiDataVal = packed struct {
     data: u16,
     _reserved: u16 = 0,
 };
-const MAC_GMII_DATA = mmio.Register(MiiDataVal).init(base + 0x14);
+var MAC_GMII_DATA = mmio.Register(MiiDataVal).init(base + 0x14);
 
 // mmio.Register();
 
@@ -256,8 +256,8 @@ const RxDescriptor = packed struct {
     buffer2_addr: u32 = 0,
 };
 
-const MAC_RX_DESC_LIST_ADDR = mmio.RawRegister.init(base + 0x100c);
-const MAC_TX_DESC_LIST_ADDR = mmio.RawRegister.init(base + 0x1010);
+var MAC_RX_DESC_LIST_ADDR = mmio.RawRegister.init(base + 0x100c);
+var MAC_TX_DESC_LIST_ADDR = mmio.RawRegister.init(base + 0x1010);
 
 const MacOpModeVal = packed struct {
     _reserved: u1 = 0,
@@ -267,13 +267,7 @@ const MacOpModeVal = packed struct {
     _unused2: u18 = 0,
 };
 
-const MAC_OP_MODE = mmio.Register(MacOpModeVal).init(base + 0x1018);
-
-const Bad = packed struct {
-    a: u8 = 0,
-    b: u9 = 0,
-    c: u15 = 0,
-};
+var MAC_OP_MODE = mmio.Register(MacOpModeVal).init(base + 0x1018);
 
 // FIXME: if we put the real bit layout here, then zig complains that the packed
 // struct is 5 bytes (while only taking up 32 bits).This is fixed in zig 0.10,
@@ -283,7 +277,7 @@ const MacBusModeVal = packed struct {
     _unused4: u31 = 0,
 };
 
-const MAC_BUS_MODE = mmio.Register(MacBusModeVal).init(base + 0x1000);
+var MAC_BUS_MODE = mmio.Register(MacBusModeVal).init(base + 0x1000);
 
 fn soft_reset_mac() void {
     uart.printf("Initial BUS_MODE: {0x:8}\n", .{MAC_BUS_MODE.raw_read()});
@@ -318,7 +312,7 @@ comptime {
     }
 }
 
-const MAC_STATUS = mmio.RawRegister.init(base + 0x1014);
+var MAC_STATUS = mmio.RawRegister.init(base + 0x1014);
 
 pub fn setup_packet(p: [*]u8) void {
     var i: usize = 0;
@@ -366,6 +360,7 @@ pub fn get_sctrl() u64 {
 }
 
 var MAC_TX_POLL_DEMAND = mmio.RawRegister.init(base + 0x1004);
+var MAC_RX_POLL_DEMAND = mmio.RawRegister.init(base + 0x1008);
 
 const cru_base: usize = 0xff500000;
 
@@ -388,11 +383,11 @@ pub fn setup_rx_desc() usize {
     var i: usize = 0;
     while (i < 4) : (i += 1) {
         rx_descs[i] = RxDescriptor{};
-        // rx_descs[i].rx.dma_own = 1;
-        // rx_descs[i].rx.disable_interrupt = 1;
-        // rx_descs[i].buffer1_addr = @intCast(u32, kmem.alloc_or_panic());
+        rx_descs[i].rx.dma_own = 1;
+        rx_descs[i].rx.disable_interrupt = 1;
+        rx_descs[i].buffer1_addr = @intCast(u32, kmem.alloc_or_panic());
         uart.printf("RX buffer = {0x}\n", .{rx_descs[i].buffer1_addr});
-        // rx_descs[i].rx.buffer1_size = 1024;
+        rx_descs[i].rx.buffer1_size = 1024;
     }
     rx_descs[3].rx.end_of_ring = 1;
     return rx_descs_addr;
@@ -432,7 +427,7 @@ pub fn try_flush_cache() void {
 
 pub fn setup_and_send_one() void {
     soft_reset_mac();
-    // set_clk_rate();
+    set_clk_rate();
     // auto_negotiate();
 
     var tx_msg: usize = kmem.alloc_or_panic();
@@ -487,7 +482,7 @@ pub fn setup_and_send_one() void {
     // try_flush_cache();
 
     // Enable MAC TX+RX DMA.
-    MAC_OP_MODE.write(.{ .start_transmit = 0, .start_receive = 1 });
+    MAC_OP_MODE.write(.{ .start_transmit = 1, .start_receive = 1 });
     uart.puts("Enabled DMAs\n");
     while (true) {
         // const cur_buffer = MAC_CUR_HOST_TX_BUF_ADDR.read();
@@ -510,13 +505,13 @@ pub fn setup_and_send_one() void {
     MAC_MAC_CONF.write(old_val | (1 << 3) | (1 << 2));
     uart.puts("Enabled transmit in MAC_MAC_CONF; about to demand TX poll\n");
 
-    MAC_TX_POLL_DEMAND.write(0x0);
+    MAC_RX_POLL_DEMAND.write(0x0);
 
     var cur_status: u32 = 0;
     var num_cycles1: usize = 0;
     while (true) {
         cur_status = MAC_STATUS.read();
-        if ((cur_status >> 20 & 0b111) != 0b001) {
+        if ((cur_status >> 17 & 0b111) != 0b001) {
             break;
         }
         num_cycles1 += 1;
@@ -525,11 +520,11 @@ pub fn setup_and_send_one() void {
 
     uart.printf("After enabling DMA, cur tx desc = {0x}; cur tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
 
-    // var num_cycles2: usize = 0;
+    var num_cycles2: usize = 0;
     // while ((MAC_STATUS.read() >> 20 & 0b111) == 0b011) : (num_cycles2 += 1) {}
-    // uart.printf("{0} iters for fetching descriptor; {1} iters for reading buffer\n", .{
-    // num_cycles1, num_cycles2,
-    // });
+    uart.printf("{0} iters for fetching descriptor; {1} iters for reading buffer\n", .{
+        num_cycles1, num_cycles2,
+    });
     // uart.printf("STATUS after first 2 phases: {0x}\n", .{MAC_STATUS.read()});
     //
     // uart.printf("MAC STATUS right after sending: {0x:8}\n", .{MAC_STATUS.read()});
