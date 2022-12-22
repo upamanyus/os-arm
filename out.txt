@@ -1,0 +1,21 @@
+[    6.247007] rk_gmac-dwmac ff4e0000.ethernet: clock input or output? (output).
+[    6.289823] rk_gmac-dwmac ff4e0000.ethernet: Can not read property: tx_delay.
+[    6.332584] rk_gmac-dwmac ff4e0000.ethernet: set tx_delay to 0x30
+[    6.369101] rk_gmac-dwmac ff4e0000.ethernet: Can not read property: rx_delay.
+[    6.411880] rk_gmac-dwmac ff4e0000.ethernet: set rx_delay to 0x10
+[    6.448407] rk_gmac-dwmac ff4e0000.ethernet: integrated PHY? (no).
+[    6.490708] rk_gmac-dwmac ff4e0000.ethernet: init for RMII
+[    6.523713] stmmac - user ID: 0x10, Synopsys ID: 0x35
+[    6.553990]  Ring mode enabled
+[    6.572295]  DMA HW capability register supported
+[    6.599420]  Normal descriptors
+[    6.619356]  RX Checksum Offload Engine supported (type 2)
+[    6.652223]  TX Checksum insertion supported
+[    6.677815]  Wake-Up On Lan supported
+[    6.699825]  Enable RX Mitigation via HW Watchdog Timer
+[    6.854861] brian phy in rtl8201f_probe 
+[    6.889757] brian phy in rtl8201f_probe 
+[    6.916043] libphy: stmmac: probed
+[    6.936436] eth%d: PHY ID 001cc816 at 0 IRQ POLL (stmmac-0:00) active
+[    6.975039] eth%d: PHY ID 001cc816 at 1 IRQ POLL (stmmac-0:01)
+

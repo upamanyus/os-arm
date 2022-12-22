@@ -33,8 +33,10 @@ var MAC_GMII_DATA = mmio.Register(MiiDataVal).init(base + 0x14);
 
 var mii_reg_vals: [32][32]u16 = .{.{0} ** 32} ** 32;
 
+const clk_range = .s60_100;
+
 // return the current value of a single specific MII register from a specific PHY
-pub fn read_mii(comptime clk_range: @Type(.EnumLiteral), phy: u5, reg: u5) u16 {
+pub fn read_mii(phy: u5, reg: u5) u16 {
     MAC_GMII_DATA.write(MiiDataVal{ .data = 0 });
     // Refer to notes from 2022-08-13 for clock analysis
     MAC_GMII_ADDR.write(MiiAddrVal{
@@ -48,6 +50,19 @@ pub fn read_mii(comptime clk_range: @Type(.EnumLiteral), phy: u5, reg: u5) u16 {
     return MAC_GMII_DATA.read().data;
 }
 
+pub fn write_mii(phy: u5, reg: u5, val: u16) void {
+    MAC_GMII_DATA.write(MiiDataVal{ .data = val });
+    // Refer to notes from 2022-08-13 for clock analysis
+    MAC_GMII_ADDR.write(MiiAddrVal{
+        .phy_addr = phy,
+        .reg_addr = reg,
+        .cr = clk_range,
+        .is_write = 1,
+        .is_busy = 1,
+    });
+    while (MAC_GMII_ADDR.read().is_busy == 1) {}
+}
+
 const grf_base = 0xFF000000;
 var GRF_GPIO1B_IOMUX_L = mmio.RawRegister.init(grf_base + 0x0028);
 var GRF_GPIO1B_IOMUX_H = mmio.RawRegister.init(grf_base + 0x002c);
@@ -55,8 +70,11 @@ var GRF_GPIO1C_IOMUX_L = mmio.RawRegister.init(grf_base + 0x0030);
 var GRF_GPIO1C_IOMUX_H = mmio.RawRegister.init(grf_base + 0x0034);
 
 var GRF_GPIO1B_P = mmio.RawRegister.init(grf_base + 0x00b4);
-var GRF_MAC_CON0 = mmio.RawRegister.init(grf_base + 0x04a0);
+var GRF_GPIO1C_P = mmio.RawRegister.init(grf_base + 0x00b8);
 var GRF_GPIO1B_E = mmio.RawRegister.init(grf_base + 0x0114);
+var GRF_GPIO1C_E = mmio.RawRegister.init(grf_base + 0x0118);
+
+var GRF_MAC_CON0 = mmio.RawRegister.init(grf_base + 0x04a0);
 
 var SYNOPSYS_ID = mmio.RawRegister.init(base + 0x20);
 
@@ -98,9 +116,8 @@ fn pin_init() void {
     GRF_MAC_CON0.write((0b100 << 2) | (0b111 << (2 + 16)) | (1) | (1 << 16));
     uart.printf("new GRF_MAC_CON0 = 0x{0x}\n", .{GRF_MAC_CON0.read()});
 
-    MAC_MAC_CONF.write(1 << 15 | 1 << 14 | 1 << 8); // 15 = port-select, MII; 8 = "link up"; 14 = 100Mpbs
-
-    // FIXME: try configuring even more GPIO pins based on 23.5 of TRM.
+    MAC_MAC_CONF.write(1 << 15 | 1 << 14 | 1 << 8 | 1 << 24); // 15 = port-select, MII; 8 = "link up"; 14 = 100Mpbs
+    // 24 = transmit-config-in-rgmii
 
     // Set pin muxes for MAC
 
@@ -149,40 +166,72 @@ fn pin_init() void {
     GRF_GPIO1C_IOMUX_H.write(new_val << 16 | new_val); // XXX: upper 16 are write enable bits
     uart.printf("Set up MUX_GPIO1C_H {0x}\n", .{GRF_GPIO1C_IOMUX_H.read()});
 
-    // Finish setting MUX states
+    // End of setting MUX states>.
+
+    // Set pin pull-up/down to disable.
 
     // XXX;: set GPIO pull-up/down state to "Z"; I think that means "bias-disable"
     // in dts terminology?
     // MAC_MDC and MAC_MDIO are pin5 and pin6 on GPIO1B.
     // bits 10-11 are pin5, 12-13 are pin6
+
+    // All set to Z: GPIOB 4,5,6,7
+    // GPIOC 0,1,2,3,4,5
     uart.printf("Previos GPIO1B_P: 0x{0x}\n", .{GRF_GPIO1B_P.read()});
-    GRF_GPIO1B_P.write((0b00 << 10 | 0b00 << 12 | 0b00 << 8) | ((0b11 << 10 | 0b11 << 12 | 0b11 << 8) << 16));
+    GRF_GPIO1B_P.write((0b00 << 8 | 0b00 << 10 | 0b00 << 12 | 0b00 << 14) | ((0b11 << 8 | 0b11 << 10 | 0b11 << 12 | 0b00 << 14) << 16));
     uart.printf("New GPIO1B_P: 0x{0x}\n", .{GRF_GPIO1B_P.read()});
 
+    uart.printf("Previos GPIO1C_P: 0x{0x}\n", .{GRF_GPIO1C_P.read()});
+    GRF_GPIO1C_P.write((0b11 << 0 | 0b11 << 2 | 0b11 << 4 | 0b11 << 6 | 0b11 << 8 | 0b11 << 10) << 16);
+    uart.printf("New GPIO1C_P: 0x{0x}\n", .{GRF_GPIO1C_P.read()});
+
+    // set power to 12ma for some of the pins: B4 and C1,C3,C2
     uart.printf("Previos GPIO1B_E: 0x{0x}\n", .{GRF_GPIO1B_E.read()});
     GRF_GPIO1B_E.write((0b11 << 8) | ((0b11 << 8) << 16));
     uart.printf("New GPIO1B_E: 0x{0x}\n", .{GRF_GPIO1B_E.read()});
 
-    delay.delay(2e8);
+    // Set to 12ma GPIO1C 1,2,3
+    uart.printf("Previos GPIO1C_E: 0x{0x}\n", .{GRF_GPIO1C_E.read()});
+    GRF_GPIO1C_E.write((0b11 << 2 | 0b11 << 4 | 0b11 << 6) | ((0b11 << 2 | 0b11 << 4 | 0b11 << 6) << 16));
+    uart.printf("New GPIO1C_E: 0x{0x}\n", .{GRF_GPIO1C_E.read()});
+}
+
+fn phy_init() void {
+    // switch to page 7
+    const prev_page = read_mii(0, 31);
+    uart.printf("Previous MII page: {0x}\n", .{prev_page});
+    write_mii(0, 0x1f, 0x07);
+
+    // set bits 4 and 5 of register 19 to 0
+    const prev_ier_bits = read_mii(0, 0x13);
+    uart.printf("Previous IER bits: {0x}\n", .{prev_ier_bits});
+    write_mii(0, 0x13, prev_ier_bits & ~@as(u16, 0x30));
+    uart.printf("New IER bits: {0x}\n", .{read_mii(0, 0x13)});
+
+    // switch back to page 0
+    write_mii(0, 0x1f, 0x00);
 }
 
 pub fn init() void {
     pin_init();
+    phy_init();
+    soft_reset_mac();
+    set_clk_rate();
+    delay.delay(1e9);
 
     // const clks = [_]@Type(.EnumLiteral){ .s60_100, .s100_150, .s20_35, .s35_60, .s150_200, .s250_300 };
-    const clks = [_]@Type(.EnumLiteral){.s60_100};
 
     // TODO: set the pclk_MAC rate correctly
-    inline for (clks) |clk_range| {
-        uart.puts("\n");
-        for (mii_reg_vals) |*phy_vals, phy| {
-            for (phy_vals.*) |*reg_val, reg| {
-                reg_val.* = read_mii(clk_range, @intCast(u5, phy), @intCast(u5, reg));
-                uart.printf("{0x:4}|", .{reg_val.*});
-            }
-            uart.puts("\n");
-        }
-    }
+    // inline for (clks) |clk_range| {
+    // uart.puts("\n");
+    // for (mii_reg_vals) |*phy_vals, phy| {
+    // for (phy_vals.*) |*reg_val, reg| {
+    // reg_val.* = read_mii(clk_range, @intCast(u5, phy), @intCast(u5, reg));
+    // uart.printf("{0x:4}|", .{reg_val.*});
+    // }
+    // uart.puts("\n");
+    // }
+    // }
 
     uart.puts("Starting send message\n");
     setup_and_send_one();
@@ -278,6 +327,7 @@ const MacBusModeVal = packed struct {
 };
 
 var MAC_BUS_MODE = mmio.Register(MacBusModeVal).init(base + 0x1000);
+var MAC_AXI_BUS_MODE = mmio.RawRegister.init(base + 0x1028);
 
 fn soft_reset_mac() void {
     uart.printf("Initial BUS_MODE: {0x:8}\n", .{MAC_BUS_MODE.raw_read()});
@@ -287,10 +337,12 @@ fn soft_reset_mac() void {
         num_cycles_to_reset += 1;
     }
 
-    // set 8xPBL_MODE (bit 24); set "fixed burst" mode (bit 16);
+    // set 8xPBL_MODE (bit 24); do not set "fixed burst" mode (bit 16);
     // sets pbl = 8 (bits [13:8])
-    // MAC_BUS_MODE.raw_write(MAC_BUS_MODE.raw_read() | (1 << 16) | (1 << 24) | (8 << 8));
-    // MAC_BUS_MODE.raw_write(MAC_BUS_MODE.raw_read() | (1 << 16) | (1 << 24) | (8 << 8));
+    MAC_BUS_MODE.raw_write(MAC_BUS_MODE.raw_read() | (1 << 24) | (8 << 8));
+
+    // dwmac1000_dma.c:95 wth default burst_len = 0
+    MAC_AXI_BUS_MODE.write(0);
 
     uart.printf("Reset took {0} cycles\n", .{num_cycles_to_reset});
     uart.printf("New BUS_MODE: {0x:8}\n", .{MAC_BUS_MODE.raw_read()});
@@ -366,8 +418,10 @@ const cru_base: usize = 0xff500000;
 
 var CRU_CLKSEL_CON43 = mmio.RawRegister.init(cru_base + 0x01ac);
 pub fn set_clk_rate() void {
-    CRU_CLKSEL_CON43.write((0b11111 << 16) | 0x1d | (1 << 14) | ((1 << 14) << 16));
-    uart.puts("Set mac clock to 25MHz, and rmii_extclk_sel = from CRU\n");
+    // FIXME: try writing 0 to bit 14 instead of 1
+    // CRU_CLKSEL_CON43.write((0b11111 << 16) | 0x1d | (0 << 14) | ((1 << 14) << 16));
+    CRU_CLKSEL_CON43.write((0b11111 << 16) | 0x0e | (0 << 14) | ((1 << 14) << 16));
+    uart.puts("Set mac clock to ~50MHz, and rmii_extclk_sel = from CRU\n");
 }
 
 var MAC_CUR_HOST_TX_DESC = mmio.RawRegister.init(base + 0x1048);
@@ -390,6 +444,7 @@ pub fn setup_rx_desc() usize {
         rx_descs[i].rx.buffer1_size = 1024;
     }
     rx_descs[3].rx.end_of_ring = 1;
+
     return rx_descs_addr;
 }
 
@@ -425,9 +480,13 @@ pub fn try_flush_cache() void {
     }
 }
 
+var MAC_DEBUG = mmio.RawRegister.init(base + 0x0024);
+
+fn dump_debug() void {
+    uart.printf("debug = {0x}\n", .{MAC_DEBUG.read()});
+}
+
 pub fn setup_and_send_one() void {
-    soft_reset_mac();
-    set_clk_rate();
     // auto_negotiate();
 
     var tx_msg: usize = kmem.alloc_or_panic();
@@ -438,6 +497,7 @@ pub fn setup_and_send_one() void {
     // set the mac address
     // setup_packet(tx_msg_ptr);
 
+    _ = kmem.alloc_or_panic();
     const tx_descs_addr = kmem.alloc_or_panic();
 
     uart.printf("Allocated {0x} then {1x}\n", .{ tx_msg, tx_descs_addr });
@@ -456,6 +516,10 @@ pub fn setup_and_send_one() void {
     tx_descs[0].tx.last_segment = 1;
     tx_descs[0].tx.dma_own = 1;
 
+    // FIXME: I'm not convinced that we have the bit/byte order correct. Trying
+    // to set this to 1 because it's the last bit of the second part of TDES0+1.
+    tx_descs[0].tx.interrupt_on_completion = 1;
+
     tx_descs[3].tx.end_of_ring = 1;
     uart.printf("TX desc value before sending: {0}\n", .{tx_descs[0]});
 
@@ -469,7 +533,7 @@ pub fn setup_and_send_one() void {
 
     // Tell MAC where to find RX descriptors
     const rx_descs_addr = setup_rx_desc();
-    MAC_RX_DESC_LIST_ADDR.write(@intCast(u32, rx_descs_addr));
+    MAC_RX_DESC_LIST_ADDR.write(@intCast(u32, tx_descs_addr));
 
     uart.printf("Before enabling DMA, cur tx desc = {0x}; cur tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
     uart.printf("Before enabling DMA, cur rx desc = {0x}; cur rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
@@ -489,13 +553,17 @@ pub fn setup_and_send_one() void {
         const cur_buffer = MAC_CUR_HOST_RX_BUF_ADDR.read();
         // const cur_buffer = MAC_TX_DESC_LIST_ADDR.read();
         if (cur_buffer != 0) {
-            uart.printf("After enabling TX DMA, first non-zero cur tx buffer = {0x}\n", .{cur_buffer});
+            uart.printf("After enabling TX/RX DMA, first non-zero cur rx buffer = {0x}\n", .{cur_buffer});
             uart.printf("After enabling DMA, cur rx desc = {0x}\n", .{MAC_CUR_HOST_RX_DESC.read()});
             uart.printf("After enabling DMA, cur rx buffer = {0x}\n", .{MAC_CUR_HOST_RX_BUF_ADDR.read()});
             break;
         }
+        break;
     }
     uart.puts("Enabled transmit DMA\n");
+
+    // doing this to make sure it's actually being written to
+    // const rx_descs_addr_hardcoded = 0x1fffc000;
     uart.printf("RxDesc0 {0x}, ", .{@intToPtr(*volatile u64, rx_descs_addr).*});
     uart.printf("RxDesc1 {0x}\n", .{@intToPtr(*volatile u64, rx_descs_addr + 8).*});
 
@@ -505,7 +573,10 @@ pub fn setup_and_send_one() void {
     MAC_MAC_CONF.write(old_val | (1 << 3) | (1 << 2));
     uart.puts("Enabled transmit in MAC_MAC_CONF; about to demand TX poll\n");
 
+    // dump_debug();
     MAC_RX_POLL_DEMAND.write(0x0);
+    // dump_debug();
+    // dump_debug();
 
     var cur_status: u32 = 0;
     var num_cycles1: usize = 0;
@@ -516,9 +587,10 @@ pub fn setup_and_send_one() void {
         }
         num_cycles1 += 1;
     }
-    uart.printf("STATUS after first 1st phase: {0x}\n", .{cur_status});
+    uart.printf("STATUS after first phase: {0x}\n", .{cur_status});
 
     uart.printf("After enabling DMA, cur tx desc = {0x}; cur tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
+    uart.printf("After enabling DMA, cur rx desc = {0x}; cur rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
 
     var num_cycles2: usize = 0;
     // while ((MAC_STATUS.read() >> 20 & 0b111) == 0b011) : (num_cycles2 += 1) {}
