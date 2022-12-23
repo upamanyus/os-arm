@@ -216,7 +216,6 @@ fn phy_init() void {
 
 pub fn init() void {
     pin_init();
-    phy_init();
     soft_reset_mac();
     set_clk_rate();
     delay.delay(1e9);
@@ -226,17 +225,18 @@ pub fn init() void {
     // TODO: set the pclk_MAC rate correctly
     // inline for (clks) |clk_range| {
     // uart.puts("\n");
-    for (mii_reg_vals) |*phy_vals, phy| {
-        for (phy_vals.*) |*reg_val, reg| {
-            reg_val.* = read_mii(@intCast(u5, phy), @intCast(u5, reg));
-            uart.printf("{0x:4}|", .{reg_val.*});
-        }
-        uart.puts("\n");
-    }
+    // for (mii_reg_vals) |*phy_vals, phy| {
+    // for (phy_vals.*) |*reg_val, reg| {
+    // reg_val.* = read_mii(@intCast(u5, phy), @intCast(u5, reg));
+    // uart.printf("{0x:4}|", .{reg_val.*});
+    // }
+    // uart.puts("\n");
+    // }
     // }
 
     // reset PHY
     phy_reset();
+    phy_init();
 
     // restart auto-negotiation
     // write_mii(0, 0, (1 << 9) | read_mii(0, 0));
@@ -263,7 +263,9 @@ pub fn init() void {
     }
 
     uart.puts("Starting send message\n");
-    setup_and_send_one();
+    while (true) {
+        setup_and_send_one();
+    }
 }
 
 const TxDescriptor0and1 = packed struct {
@@ -516,24 +518,15 @@ fn dump_debug() void {
 }
 
 pub fn setup_and_send_one() void {
-    // auto_negotiate();
+    uart.puts("================================================================================\n");
 
+    // set up packet data
     var tx_msg: usize = kmem.alloc_or_panic();
-
-    // Set up message being sent. Make it sequentially increasing bytes. Will
-    // make this a valid ethernet frame later.
-    // var tx_msg_ptr = @intToPtr([*]u8, tx_msg);
-    // set the mac address
-    // setup_packet(tx_msg_ptr);
-
-    _ = kmem.alloc_or_panic();
+    var tx_msg_ptr = @intToPtr([*]u8, tx_msg);
+    setup_packet(tx_msg_ptr);
     const tx_descs_addr = kmem.alloc_or_panic();
 
-    uart.printf("Allocated {0x} then {1x}\n", .{ tx_msg, tx_descs_addr });
     var tx_descs = @intToPtr([*]volatile TxDescriptor, tx_descs_addr);
-
-    uart.printf("sctrl = {0x}\n", .{get_sctrl()});
-
     tx_descs[0] = TxDescriptor{}; // zero out
     // Set up TX descriptor ring. Need to set "end of ring" on last one.
     tx_descs[0].tx.end_of_ring = 0;
@@ -543,83 +536,86 @@ pub fn setup_and_send_one() void {
     tx_descs[0].tx.transmit_buffer2_size = 0;
     tx_descs[0].tx.first_segment = 1;
     tx_descs[0].tx.last_segment = 1;
-    tx_descs[0].tx.dma_own = 1;
-
+    tx_descs[0].tx.dma_own = 0;
     // FIXME: I'm not convinced that we have the bit/byte order correct. Trying
     // to set this to 1 because it's the last bit of the second part of TDES0+1.
-    tx_descs[0].tx.interrupt_on_completion = 1;
-
+    // tx_descs[0].tx.interrupt_on_completion = 0;
     tx_descs[3].tx.end_of_ring = 1;
-    uart.printf("TX desc value before sending: {0}\n", .{tx_descs[0]});
+    // uart.printf("TX desc value before sending: {0}\n", .{tx_descs[0]});
+
+    // disable DMA
+    MAC_OP_MODE.write(.{ .start_transmit = 0, .start_receive = 0 });
 
     // Tell MAC where to find TX descriptors
     MAC_TX_DESC_LIST_ADDR.write(@intCast(u32, @ptrToInt(tx_descs)));
-    uart.printf("TX desc reg addr: {0x}; tx addr: {1x}\n", .{ MAC_TX_DESC_LIST_ADDR.read(), @ptrToInt(&tx_descs[0]) });
-    uart.printf("Tx desc0and1 = {0x}\n", .{@intToPtr(*u64, MAC_TX_DESC_LIST_ADDR.read()).*});
-    uart.printf("Tx desc2and3 = {0x}\n", .{@intToPtr(*u64, MAC_TX_DESC_LIST_ADDR.read() + 8).*});
-
-    uart.printf("STATUS before transfer desc: {0x:8}\n", .{MAC_STATUS.read()});
+    // uart.printf("TX desc reg addr: {0x}; tx addr: {1x}\n", .{ MAC_TX_DESC_LIST_ADDR.read(), @ptrToInt(&tx_descs[0]) });
+    // uart.printf("Tx desc0and1 = {0x}\n", .{@intToPtr(*u64, MAC_TX_DESC_LIST_ADDR.read()).*});
+    // uart.printf("Tx desc2and3 = {0x}\n", .{@intToPtr(*u64, MAC_TX_DESC_LIST_ADDR.read() + 8).*});
 
     // Tell MAC where to find RX descriptors
     const rx_descs_addr = setup_rx_desc();
-    MAC_RX_DESC_LIST_ADDR.write(@intCast(u32, tx_descs_addr));
-
-    uart.printf("Before enabling DMA, cur tx desc = {0x}; cur tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
-    uart.printf("Before enabling DMA, cur rx desc = {0x}; cur rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
-
-    // try_flush_cache();
-    // try_flush_cache();
-    // try_flush_cache();
-    // try_flush_cache();
-    // try_flush_cache();
-    // try_flush_cache();
-
-    // Enable MAC TX+RX DMA.
-    MAC_OP_MODE.write(.{ .start_transmit = 1, .start_receive = 1 });
-    uart.puts("Enabled DMAs\n");
-    while (true) {
-        // const cur_buffer = MAC_CUR_HOST_TX_BUF_ADDR.read();
-        const cur_buffer = MAC_CUR_HOST_RX_BUF_ADDR.read();
-        // const cur_buffer = MAC_TX_DESC_LIST_ADDR.read();
-        if (cur_buffer != 0) {
-            uart.printf("After enabling TX/RX DMA, first non-zero cur rx buffer = {0x}\n", .{cur_buffer});
-            uart.printf("After enabling DMA, cur rx desc = {0x}\n", .{MAC_CUR_HOST_RX_DESC.read()});
-            uart.printf("After enabling DMA, cur rx buffer = {0x}\n", .{MAC_CUR_HOST_RX_BUF_ADDR.read()});
-            break;
-        }
-        break;
-    }
-    uart.puts("Enabled transmit DMA\n");
-
     // doing this to make sure it's actually being written to
     // const rx_descs_addr_hardcoded = 0x1fffc000;
     uart.printf("RxDesc0 {0x}, ", .{@intToPtr(*volatile u64, rx_descs_addr).*});
     uart.printf("RxDesc1 {0x}\n", .{@intToPtr(*volatile u64, rx_descs_addr + 8).*});
 
-    // Enable MAC transmit; TRM says to do this after enabling MAC TX DMA (pg
-    // 522).
-    var old_val = MAC_MAC_CONF.read();
-    MAC_MAC_CONF.write(old_val | (1 << 3) | (1 << 2));
-    uart.puts("Enabled transmit in MAC_MAC_CONF; about to demand TX poll\n");
+    MAC_RX_DESC_LIST_ADDR.write(@intCast(u32, rx_descs_addr));
+    // uart.printf("Before enabling DMA, cur rx desc = {0x}; cur rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
 
-    // dump_debug();
-    MAC_RX_POLL_DEMAND.write(0x0);
-    // dump_debug();
-    // dump_debug();
+    uart.printf("Before enabling DMA, cur tx desc = {0x}; cur tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
+
+    // Enable MAC TX+RX DMA.
+    uart.printf("STATUS with no DMA: {0x:8}\n", .{MAC_STATUS.read()});
+    MAC_OP_MODE.write(.{ .start_transmit = 1, .start_receive = 1 });
+    uart.printf("STATUS right after DMA: {0x:8}\n", .{MAC_STATUS.read()});
+
+    uart.printf("DMA no TX, tx desc = {0x}; tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
 
     var cur_status: u32 = 0;
     var num_cycles1: usize = 0;
     while (true) {
         cur_status = MAC_STATUS.read();
-        if ((cur_status >> 17 & 0b111) != 0b001) {
+        if ((cur_status >> 20 & 0b111) != 0b001) {
             break;
         }
         num_cycles1 += 1;
     }
     uart.printf("STATUS after first phase: {0x}\n", .{cur_status});
+    delay.delay(100 * 1e6);
+    uart.printf("DMA no TX, tx desc = {0x}; tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
 
-    uart.printf("After enabling DMA, cur tx desc = {0x}; cur tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
-    uart.printf("After enabling DMA, cur rx desc = {0x}; cur rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
+    // Enable MAC transmit; TRM says to do this after enabling MAC TX DMA (pg
+    // 522).
+    var old_val = MAC_MAC_CONF.read();
+    MAC_MAC_CONF.write(old_val | (1 << 3) | (1 << 2));
+    uart.puts("Enabled transmit+receive in MAC_MAC_CONF; about to demand TX poll\n");
+
+    uart.puts("Giving ownership of tx desc to DMA\n");
+    // give ownership to DMA
+    tx_descs[0].tx.dma_own = 1;
+    delay.delay(100 * 1e6);
+    MAC_RX_POLL_DEMAND.write(0x0);
+    MAC_TX_POLL_DEMAND.write(0x0);
+    // dump_debug();
+    // dump_debug();
+
+    cur_status = 0;
+    num_cycles1 = 0;
+    while (true) {
+        cur_status = MAC_STATUS.read();
+        if ((cur_status >> 20 & 0b111) != 0b001) {
+            break;
+        }
+        num_cycles1 += 1;
+    }
+    uart.printf("STATUS after first phase: {0x}\n", .{cur_status});
+    uart.printf("DMA with TX, tx desc = {0x}; tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
+
+    // uart.printf("After enabling DMA, cur rx desc = {0x}; cur rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
+
+    if (true) {
+        return;
+    }
 
     var num_cycles2: usize = 0;
     // while ((MAC_STATUS.read() >> 20 & 0b111) == 0b011) : (num_cycles2 += 1) {}
