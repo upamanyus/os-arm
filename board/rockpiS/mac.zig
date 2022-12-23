@@ -108,8 +108,6 @@ fn phy_reset() void {
 }
 
 fn pin_init() void {
-    phy_reset();
-
     uart.printf("Synopsys ID: 0x{0x}\n", .{SYNOPSYS_ID.read()});
 
     // set up GRF_MAC_CON0 grf_con_mac2io_phy_intf_sel
@@ -199,6 +197,15 @@ fn pin_init() void {
 }
 
 fn phy_init() void {
+    // soft reset
+    write_mii(0, 0, 1 << 15);
+    while (true) {
+        if (read_mii(0, 0) & (1 << 15) == 0) {
+            break;
+        }
+    }
+    uart.puts("Done with soft reset of phy\n");
+
     // switch to page 7
     const prev_page = read_mii(0, 31);
     uart.printf("Previous MII page: {0x}\n", .{prev_page});
@@ -214,11 +221,13 @@ fn phy_init() void {
     write_mii(0, 0x1f, 0x00);
 }
 
+var MAC_MAC_FRM_FILT = mmio.RawRegister.init(base + 0x0004);
+
 pub fn init() void {
     pin_init();
-    soft_reset_mac();
     set_clk_rate();
-    delay.delay(1e9);
+    soft_reset_mac();
+    delay.delay(1e8);
 
     // const clks = [_]@Type(.EnumLiteral){ .s60_100, .s100_150, .s20_35, .s35_60, .s150_200, .s250_300 };
 
@@ -240,14 +249,17 @@ pub fn init() void {
 
     // restart auto-negotiation
     // write_mii(0, 0, (1 << 9) | read_mii(0, 0));
-
+    // auto_negotiate();
     // disable auto-negotation
     write_mii(0, 0, ~@as(u16, 1 << 12) & read_mii(0, 0));
 
+    MAC_MAC_FRM_FILT.write(1 << 31);
+
     var reg_vals: [32]u16 = .{0} ** 32;
     for (reg_vals) |_, reg| {
-        uart.printf("{0x:4}+", .{reg});
+        uart.printf("{0x:4}|", .{reg});
     }
+    uart.puts("\n");
 
     var i: usize = 0;
     while (i < 20) : (i += 1) {
@@ -566,7 +578,7 @@ pub fn setup_and_send_one() void {
 
     // Enable MAC TX+RX DMA.
     uart.printf("STATUS with no DMA: {0x:8}\n", .{MAC_STATUS.read()});
-    MAC_OP_MODE.write(.{ .start_transmit = 1, .start_receive = 1 });
+    MAC_OP_MODE.write(.{ .start_transmit = 0, .start_receive = 1 });
     uart.printf("STATUS right after DMA: {0x:8}\n", .{MAC_STATUS.read()});
 
     uart.printf("DMA no TX, tx desc = {0x}; tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
@@ -587,8 +599,30 @@ pub fn setup_and_send_one() void {
     // Enable MAC transmit; TRM says to do this after enabling MAC TX DMA (pg
     // 522).
     var old_val = MAC_MAC_CONF.read();
-    MAC_MAC_CONF.write(old_val | (1 << 3) | (1 << 2));
-    uart.puts("Enabled transmit+receive in MAC_MAC_CONF; about to demand TX poll\n");
+    MAC_MAC_CONF.write(old_val | (0 << 3) | (1 << 2));
+    uart.puts("Enabled receive in MAC_MAC_CONF\n");
+
+    //
+    // Now, wait to recv a packet
+    uart.printf("rx desc = {0x}; rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
+    cur_status = MAC_STATUS.read();
+    uart.printf("STATUS = 0x{0x}\n", .{cur_status});
+    num_cycles1 = 0;
+    while (true) {
+        dump_debug();
+        const new_status = MAC_STATUS.read();
+        uart.printf("RxDesc0 {0x}, ", .{@intToPtr(*volatile u64, rx_descs_addr).*});
+        uart.printf("RxDesc1 {0x}\n", .{@intToPtr(*volatile u64, rx_descs_addr + 8).*});
+        if (new_status != cur_status) {
+            cur_status = new_status;
+            break;
+        }
+        num_cycles1 += 1;
+        delay.delay(100 * 1e6);
+    }
+    uart.printf("STATUS after RX: {0x}\n", .{cur_status});
+    uart.printf("rx desc = {0x}; rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
+    //
 
     uart.puts("Giving ownership of tx desc to DMA\n");
     // give ownership to DMA

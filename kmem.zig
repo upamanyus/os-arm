@@ -46,6 +46,11 @@ pub fn free(addr: usize) void {
 pub fn alloc() !usize {
     if (freelist) |addr| {
         freelist = addr.next;
+        // zero out addr
+        var i: usize = 0;
+        while (i < 4096) : (i += 8) {
+            @intToPtr(*volatile u64, @ptrToInt(addr) + i).* = 0;
+        }
         return @ptrToInt(addr);
     } else {
         return error.OutOfMemory;
