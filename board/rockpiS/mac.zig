@@ -81,6 +81,7 @@ var SYNOPSYS_ID = mmio.RawRegister.init(base + 0x20);
 var MAC_MAC_CONF = mmio.RawRegister.init(base + 0x0);
 
 fn phy_reset() void {
+    // hard reset, by turning the reset pin on and off
     var gpio0_base: usize = 0xff220000;
     var GPIO0_SWPORTA_DR = mmio.RawRegister.init(gpio0_base + 0x0);
     var GPIO0_SWPORTA_DDR = mmio.RawRegister.init(gpio0_base + 0x4);
@@ -116,7 +117,8 @@ fn pin_init() void {
     GRF_MAC_CON0.write((0b100 << 2) | (0b111 << (2 + 16)) | (1) | (1 << 16));
     uart.printf("new GRF_MAC_CON0 = 0x{0x}\n", .{GRF_MAC_CON0.read()});
 
-    MAC_MAC_CONF.write(1 << 15 | 1 << 14 | 1 << 8 | 1 << 24); // 15 = port-select, MII; 8 = "link up"; 14 = 100Mpbs
+    // MAC_MAC_CONF.write(1 << 15 | 1 << 14 | 1 << 8 | 1 << 24); // 15 = port-select, MII; 8 = "link up"; 14 = 100Mpbs
+    MAC_MAC_CONF.write(1 << 15 | 0 << 14); // 15 = port-select, MII; 14 = 0 means 10Mpbs
     // 24 = transmit-config-in-rgmii
 
     // Set pin muxes for MAC
@@ -224,14 +226,41 @@ pub fn init() void {
     // TODO: set the pclk_MAC rate correctly
     // inline for (clks) |clk_range| {
     // uart.puts("\n");
-    // for (mii_reg_vals) |*phy_vals, phy| {
-    // for (phy_vals.*) |*reg_val, reg| {
-    // reg_val.* = read_mii(clk_range, @intCast(u5, phy), @intCast(u5, reg));
-    // uart.printf("{0x:4}|", .{reg_val.*});
+    for (mii_reg_vals) |*phy_vals, phy| {
+        for (phy_vals.*) |*reg_val, reg| {
+            reg_val.* = read_mii(@intCast(u5, phy), @intCast(u5, reg));
+            uart.printf("{0x:4}|", .{reg_val.*});
+        }
+        uart.puts("\n");
+    }
     // }
-    // uart.puts("\n");
-    // }
-    // }
+
+    // reset PHY
+    phy_reset();
+
+    // restart auto-negotiation
+    // write_mii(0, 0, (1 << 9) | read_mii(0, 0));
+
+    // disable auto-negotation
+    write_mii(0, 0, ~@as(u16, 1 << 12) & read_mii(0, 0));
+
+    var reg_vals: [32]u16 = .{0} ** 32;
+    for (reg_vals) |_, reg| {
+        uart.printf("{0x:4}+", .{reg});
+    }
+
+    var i: usize = 0;
+    while (i < 20) : (i += 1) {
+        for (reg_vals) |*reg_val, reg| {
+            reg_val.* = read_mii(0, @intCast(u5, reg));
+        }
+        for (reg_vals) |*reg_val| {
+            uart.printf("{0x:4}|", .{reg_val.*});
+        }
+        uart.puts("\n");
+
+        delay.delay(50 * 1e6); // 50ms
+    }
 
     uart.puts("Starting send message\n");
     setup_and_send_one();
