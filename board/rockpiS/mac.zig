@@ -110,9 +110,11 @@ fn phy_reset() void {
 fn pin_init() void {
     uart.printf("Synopsys ID: 0x{0x}\n", .{SYNOPSYS_ID.read()});
 
+    // FIXME: this is really clk init, and should be done once a link is
+    // established.
     // set up GRF_MAC_CON0 grf_con_mac2io_phy_intf_sel
     uart.printf("Old GRF_MAC_CON0 = 0x{0x}\n", .{GRF_MAC_CON0.read()});
-    GRF_MAC_CON0.write((0b100 << 2) | (0b111 << (2 + 16)) | (1) | (1 << 16));
+    GRF_MAC_CON0.write((0b100 << 2) | (0b111 << (2 + 16)) | (0) | (1 << 16));
     uart.printf("new GRF_MAC_CON0 = 0x{0x}\n", .{GRF_MAC_CON0.read()});
 
     // MAC_MAC_CONF.write(1 << 15 | 1 << 14 | 1 << 8 | 1 << 24); // 15 = port-select, MII; 8 = "link up"; 14 = 100Mpbs
@@ -226,6 +228,7 @@ var MAC_MAC_FRM_FILT = mmio.RawRegister.init(base + 0x0004);
 pub fn init() void {
     pin_init();
     set_clk_rate();
+    delay.delay(1e8);
     soft_reset_mac();
     delay.delay(1e8);
 
@@ -377,12 +380,13 @@ fn soft_reset_mac() void {
     MAC_BUS_MODE.write(MacBusModeVal{ .software_reset = 1 });
     var num_cycles_to_reset: usize = 0;
     while (MAC_BUS_MODE.read().software_reset == 1) {
+        uart.printf("Current BUS_MODE: {0x:8}\n", .{MAC_BUS_MODE.raw_read()});
         num_cycles_to_reset += 1;
     }
 
     // set 8xPBL_MODE (bit 24); do not set "fixed burst" mode (bit 16);
-    // sets pbl = 8 (bits [13:8])
-    MAC_BUS_MODE.raw_write(MAC_BUS_MODE.raw_read() | (1 << 24) | (8 << 8));
+    // sets pbl = 8 (bits [13:8]) as well as rpbl
+    MAC_BUS_MODE.raw_write((1 << 24) | (8 << 8) | (8 << 17));
 
     // dwmac1000_dma.c:95 wth default burst_len = 0
     MAC_AXI_BUS_MODE.write(0);
@@ -474,6 +478,7 @@ var MAC_CUR_HOST_RX_BUF_ADDR = mmio.RawRegister.init(base + 0x1054);
 
 // returns a pointer to the beginning of RX_DESC_LIST
 pub fn setup_rx_desc() usize {
+    // _ = kmem.alloc_or_panic();
     const rx_descs_addr = kmem.alloc_or_panic();
     var rx_descs = @intToPtr([*]volatile RxDescriptor, rx_descs_addr);
     // set up 4 descriptors
@@ -529,6 +534,7 @@ fn dump_debug() void {
     uart.printf("debug = {0x}\n", .{MAC_DEBUG.read()});
 }
 
+var MAC_OVERFLOW_CNT = mmio.RawRegister.init(base + 0x1020);
 pub fn setup_and_send_one() void {
     uart.puts("================================================================================\n");
 
@@ -611,6 +617,7 @@ pub fn setup_and_send_one() void {
     while (true) {
         dump_debug();
         const new_status = MAC_STATUS.read();
+        uart.printf("Dropped recv packets {0} ", .{MAC_OVERFLOW_CNT.read()});
         uart.printf("RxDesc0 {0x}, ", .{@intToPtr(*volatile u64, rx_descs_addr).*});
         uart.printf("RxDesc1 {0x}\n", .{@intToPtr(*volatile u64, rx_descs_addr + 8).*});
         if (new_status != cur_status) {
