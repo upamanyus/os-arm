@@ -105,6 +105,7 @@ fn phy_reset() void {
     GPIO0_SWPORTA_DDR.write(1 << 7);
     GPIO0_SWPORTA_DR.write(1 << 7);
     delay.delay(50 * 1e6);
+    uart.puts("Done with hard reset of PHY\n");
 }
 
 fn pin_init() void {
@@ -200,6 +201,7 @@ fn pin_init() void {
 
 fn phy_init() void {
     // soft reset
+    uart.puts("Starting soft reset of phy\n");
     write_mii(0, 0, 1 << 15);
     while (true) {
         if (read_mii(0, 0) & (1 << 15) == 0) {
@@ -229,7 +231,30 @@ pub fn init() void {
     pin_init();
     set_clk_rate();
     delay.delay(1e8);
+
     soft_reset_mac();
+    phy_reset();
+
+    var reg_vals1: [32]u16 = .{0} ** 32;
+    for (reg_vals1) |_, reg| {
+        uart.printf("{0x:4}|", .{reg});
+    }
+    uart.puts("\n");
+    for (reg_vals1) |*reg_val, reg| {
+        reg_val.* = read_mii(0, @intCast(u5, reg));
+    }
+    for (reg_vals1) |*reg_val| {
+        uart.printf("{0x:4}|", .{reg_val.*});
+    }
+    uart.puts("\n");
+
+    delay.delay(50 * 1e6); // 50ms
+
+    phy_init();
+
+    delay.delay(1e8);
+
+    // set_clk_rate();
     delay.delay(1e8);
 
     // const clks = [_]@Type(.EnumLiteral){ .s60_100, .s100_150, .s20_35, .s35_60, .s150_200, .s250_300 };
@@ -245,10 +270,6 @@ pub fn init() void {
     // uart.puts("\n");
     // }
     // }
-
-    // reset PHY
-    phy_reset();
-    phy_init();
 
     // restart auto-negotiation
     // write_mii(0, 0, (1 << 9) | read_mii(0, 0));
@@ -390,6 +411,7 @@ fn soft_reset_mac() void {
 
     // dwmac1000_dma.c:95 wth default burst_len = 0
     MAC_AXI_BUS_MODE.write(0);
+    uart.printf("AXI bus mode: {0x}\n", .{MAC_AXI_BUS_MODE.read()});
 
     uart.printf("Reset took {0} cycles\n", .{num_cycles_to_reset});
     uart.printf("New BUS_MODE: {0x:8}\n", .{MAC_BUS_MODE.raw_read()});
@@ -467,7 +489,8 @@ var CRU_CLKSEL_CON43 = mmio.RawRegister.init(cru_base + 0x01ac);
 pub fn set_clk_rate() void {
     // FIXME: try writing 0 to bit 14 instead of 1
     // CRU_CLKSEL_CON43.write((0b11111 << 16) | 0x1d | (0 << 14) | ((1 << 14) << 16));
-    CRU_CLKSEL_CON43.write((0b11111 << 16) | 0x0e | (0 << 14) | ((1 << 14) << 16));
+    // CRU_CLKSEL_CON43.write((0b11111 << 16) | 0x0e | (1 << 14) | ((1 << 14) << 16));
+    CRU_CLKSEL_CON43.write((0b11111 << 16) | 0x1f | (0 << 14) | ((1 << 14) << 16));
     uart.puts("Set mac clock to ~50MHz, and rmii_extclk_sel = from CRU\n");
 }
 
@@ -488,6 +511,8 @@ pub fn setup_rx_desc() usize {
         rx_descs[i].rx.dma_own = 1;
         rx_descs[i].rx.disable_interrupt = 1;
         rx_descs[i].buffer1_addr = @intCast(u32, kmem.alloc_or_panic());
+        rx_descs[i].buffer1_addr = 0x0deadbee;
+        rx_descs[i].buffer2_addr = 0x0deadfab;
         uart.printf("RX buffer = {0x}\n", .{rx_descs[i].buffer1_addr});
         rx_descs[i].rx.buffer1_size = 1024;
     }
@@ -535,6 +560,8 @@ fn dump_debug() void {
 }
 
 var MAC_OVERFLOW_CNT = mmio.RawRegister.init(base + 0x1020);
+var MAC_INT_ENA = mmio.RawRegister.init(base + 0x101c);
+
 pub fn setup_and_send_one() void {
     uart.puts("================================================================================\n");
 
@@ -548,8 +575,8 @@ pub fn setup_and_send_one() void {
     tx_descs[0] = TxDescriptor{}; // zero out
     // Set up TX descriptor ring. Need to set "end of ring" on last one.
     tx_descs[0].tx.end_of_ring = 0;
-    tx_descs[0].buffer1_addr = @intCast(u32, tx_msg);
-    tx_descs[0].buffer2_addr = @intCast(u32, tx_msg);
+    // tx_descs[0].buffer1_addr = @intCast(u32, tx_msg);
+    // tx_descs[0].buffer2_addr = @intCast(u32, tx_msg);
     tx_descs[0].tx.transmit_buffer1_size = 1024;
     tx_descs[0].tx.transmit_buffer2_size = 0;
     tx_descs[0].tx.first_segment = 1;
@@ -563,6 +590,7 @@ pub fn setup_and_send_one() void {
 
     // disable DMA
     MAC_OP_MODE.write(.{ .start_transmit = 0, .start_receive = 0 });
+    //
 
     // Tell MAC where to find TX descriptors
     MAC_TX_DESC_LIST_ADDR.write(@intCast(u32, @ptrToInt(tx_descs)));
@@ -573,9 +601,9 @@ pub fn setup_and_send_one() void {
     // Tell MAC where to find RX descriptors
     const rx_descs_addr = setup_rx_desc();
     // doing this to make sure it's actually being written to
-    // const rx_descs_addr_hardcoded = 0x1fffc000;
-    uart.printf("RxDesc0 {0x}, ", .{@intToPtr(*volatile u64, rx_descs_addr).*});
-    uart.printf("RxDesc1 {0x}\n", .{@intToPtr(*volatile u64, rx_descs_addr + 8).*});
+    const rx_descs_addr_hardcoded = 0x1fffc000;
+    uart.printf("RxDesc0 {0x}, ", .{@intToPtr(*volatile u64, rx_descs_addr_hardcoded).*});
+    uart.printf("RxDesc1 {0x}\n", .{@intToPtr(*volatile u64, rx_descs_addr_hardcoded + 8).*});
 
     MAC_RX_DESC_LIST_ADDR.write(@intCast(u32, rx_descs_addr));
     // uart.printf("Before enabling DMA, cur rx desc = {0x}; cur rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
@@ -584,8 +612,16 @@ pub fn setup_and_send_one() void {
 
     // Enable MAC TX+RX DMA.
     uart.printf("STATUS with no DMA: {0x:8}\n", .{MAC_STATUS.read()});
-    MAC_OP_MODE.write(.{ .start_transmit = 0, .start_receive = 1 });
+
+    MAC_INT_ENA.write(0x0001A061); // Reg7  0x0001A061   MAC_INT_ENA
+    MAC_OP_MODE.raw_write(1 << 1 | 1 << 13 | 1 << 2 | 1 << 21 | 1 << 25);
+
+    // MAC_OP_MODE.write(.{ .start_transmit = 0, .start_receive = 1 });
     uart.printf("STATUS right after DMA: {0x:8}\n", .{MAC_STATUS.read()});
+    uart.printf("New MAC_OP_MODE: {0x}\n", .{MAC_OP_MODE.raw_read()});
+    uart.printf("New MAC_INT_ENA: {0x}\n", .{MAC_INT_ENA.read()});
+
+    dump_dma_regs();
 
     uart.printf("DMA no TX, tx desc = {0x}; tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
 
@@ -673,5 +709,12 @@ pub fn setup_and_send_one() void {
         uart.printf("Current TX desc: {0}\n", .{tx_descs[0]});
         uart.printf("Current STATUS desc: {0x:8}\n", .{MAC_STATUS.read()});
         done = (tx_descs[0].tx.dma_own == 0);
+    }
+}
+
+pub fn dump_dma_regs() void {
+    var i: usize = 0;
+    while (i < 22) : (i += 1) {
+        uart.printf("Reg{0}  0x{1x:08}\n", .{ i, @intToPtr(*volatile u32, base + 0x1000 + i * 4).* });
     }
 }
