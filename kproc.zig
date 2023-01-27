@@ -9,7 +9,7 @@ const kmem = @import("kmem.zig");
 
 // FIXME: move to arch folder
 // callee-saved things that must be saved on kproc_switch()
-const CooperativeContext = packed struct {
+const CooperativeContext = struct {
     lr: u64,
     sp: u64,
     fp: u64,
@@ -41,7 +41,7 @@ pub fn init() void {
     uart.printf("Procs using up {0} bytes of memory\n", .{@sizeOf(@TypeOf(procs))});
 }
 
-pub fn spawn(f: Func, args: u64) void {
+pub fn spawn(f: *const Func, args: u64) void {
     if (nproc == max) {
         panic.panic("ran out of kprocs\n");
     }
@@ -54,7 +54,7 @@ pub fn spawn(f: Func, args: u64) void {
             proc.stack_addr = kmem.alloc_or_panic();
             proc.ctx.sp = proc.stack_addr + kmem.pgsize; // top of stack, since it grows down
             proc.ctx.fp = proc.ctx.sp;
-            proc.ctx.lr = @ptrToInt(kproc_start);
+            proc.ctx.lr = @ptrToInt(&kproc_start);
             nproc += 1;
             return;
         }

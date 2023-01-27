@@ -3,8 +3,8 @@ const std = @import("std");
 const rockpiS = @import("board/rockpiS/mem_layout.zig");
 const raspi3 = @import("board/raspi3/mem_layout.zig");
 
-// const impl = raspi3;
-const impl = rockpiS;
+const impl = raspi3;
+// const impl = rockpiS;
 
 pub extern const __kern_end: [*]u8;
 // FIXME: this doesn't work, even though it seems like it should.

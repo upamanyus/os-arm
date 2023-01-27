@@ -63,5 +63,5 @@ pub fn putc(c: u8) void {
 
 pub fn getc() u8 {
     while (mmio.UART0_FR.read() & (1 << 4) != 0) {}
-    return mmio.UART0_DR.read();
+    return @intCast(u8, mmio.UART0_DR.read());
 }

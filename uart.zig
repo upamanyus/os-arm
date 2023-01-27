@@ -4,13 +4,13 @@ const panic = @import("panic.zig");
 const raspi3 = @import("board/raspi3/uart.zig");
 const rockpiS = @import("board/rockpiS/uart.zig");
 
-// const impl = raspi3;
-const impl = rockpiS;
+const impl = raspi3;
+// const impl = rockpiS;
 
 pub const init = impl.init;
 
-const putc = impl.putc;
-const getc = impl.getc;
+pub const putc = impl.putc;
+pub const getc = impl.getc;
 
 pub fn puts(s: []const u8) void {
     for (s) |c| {
