@@ -21,7 +21,7 @@ const max = 1024;
 
 const Process = struct {
     ctx: CooperativeContext,
-    state: enum { inactive, idle, running } = .inactive,
+    state: enum { inactive, idle, running, cleanup } = .inactive,
 
     // The process owns a stack page. Later this might become multiple pages etc.
     // The process must never overflow the stack, or unsafe behavior can occur.
@@ -62,8 +62,10 @@ pub fn spawn(f: *const Func, args: u64) void {
     panic.panic("unreachable\n");
 }
 
+var cur_proc: *Process = undefined;
+var sched_ctx: CooperativeContext = undefined;
+
 pub fn schedulerLoop() void {
-    var sched_ctx: CooperativeContext = undefined;
     var took_step = true;
     while (took_step) {
         took_step = false;
@@ -71,10 +73,16 @@ pub fn schedulerLoop() void {
             if (proc.state == .idle) {
                 proc.state = .running;
                 // run the proc
+                cur_proc = proc;
                 kproc_switch(&sched_ctx, &proc.ctx);
 
-                if (proc.state == .inactive) {
+                // XXX: exit() will set the proc to cleanup to indicate that it
+                // needs to be cleaned up.
+                if (proc.state == .cleanup) {
                     kmem.free(proc.stack_addr); // cleanup
+                    proc.state = .inactive;
+                } else {
+                    proc.state = .idle;
                 }
             }
             took_step = true;
@@ -83,14 +91,19 @@ pub fn schedulerLoop() void {
     uart.puts("No procs to run\n");
 }
 
-fn yield(_: Func) void {}
+pub fn yield() void {
+    kproc_switch(&cur_proc.ctx, &sched_ctx);
+}
 
 comptime {
     @export(exit, .{ .name = "kproc_exit", .linkage = .Strong });
 }
+
 fn exit() callconv(.C) void {
     nproc -= 1;
-    panic.panic("process exiting\n");
+    cur_proc.state = .cleanup;
+    uart.puts("process exiting\n");
+    yield();
 }
 
 extern fn kproc_switch(old: *CooperativeContext, new: *CooperativeContext) void;

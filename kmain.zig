@@ -6,13 +6,44 @@ const kproc = @import("kproc.zig");
 
 const mac = @import("board/rockpiS/mac.zig");
 
+fn kproc1(_: u64) void {
+    uart.puts("kproc1: A\n");
+    kproc.yield();
+    uart.puts("kproc1: B\n");
+    kproc.yield();
+    uart.puts("kproc1: C\n");
+}
+
+fn kproc2(_: u64) void {
+    uart.puts("kproc2: A\n");
+    kproc.yield();
+    uart.puts("kproc2: B\n");
+    kproc.yield();
+    uart.puts("kproc2: C\n");
+}
+
 fn main(_: u64) void {
     // uart.puts("Searching for MAC\n");
     // mac.init();
     // uart.puts("Finished searching for MAC\n");
+
+    kproc.spawn(kproc1, 0);
+    kproc.spawn(kproc2, 0);
+
+    // FIXME: "wait" for background kprocs threads
+    kproc.yield();
+    kproc.yield();
+    kproc.yield();
+    kproc.yield();
+    kproc.yield();
+
     uart.puts("waiting for input: \n");
     while (true) {
         var c = uart.getc();
+        if (c == '\r') {
+            uart.puts("\nExiting\n");
+            return;
+        }
         uart.putc(c);
     }
 }
