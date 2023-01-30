@@ -3,8 +3,8 @@ ENTRY(_start)
 SECTIONS
 {
     /* Starts at LOADER_ADDR. */
-    /* . = 0x80000; */ /* for raspberry pi */
-    . = 0x800000;
+    . = 0x80000; /* for raspberry pi */
+    /* . = 0x800000; */
     __start = .;
     __text_start = .;
     .text :

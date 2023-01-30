@@ -108,3 +108,5 @@ fn exit() callconv(.C) void {
 
 extern fn kproc_switch(old: *CooperativeContext, new: *CooperativeContext) void;
 extern fn kproc_start() void;
+
+pub extern fn trigger_undef() void;

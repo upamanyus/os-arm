@@ -7,11 +7,12 @@ pub fn build(b: *Builder) void {
 
     kernel.addAssemblyFile("arch/aarch64/start.S");
     kernel.addAssemblyFile("arch/aarch64/switch.S");
+    kernel.addAssemblyFile("arch/aarch64/entry.S");
 
     // kernel.setBuildMode(b.standardReleaseOptions());
 
-    kernel.setBuildMode(std.builtin.Mode.ReleaseSmall);
-    // kernel.setBuildMode(std.builtin.Mode.Debug);
+    // kernel.setBuildMode(std.builtin.Mode.ReleaseSmall);
+    kernel.setBuildMode(std.builtin.Mode.Debug);
     // NOTE: doing Mode.Debug includes some unused functions in the kernel and
     // bloats the size. ReleaseSafe gets rid of that stuff
 
