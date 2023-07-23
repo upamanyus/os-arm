@@ -23,6 +23,7 @@ fn kproc2(_: u64) void {
 
     uart.puts("Triggering udf\n");
     kproc.trigger_undef();
+    uart.puts("Done triggering udf\n");
 }
 
 fn main(_: u64) void {
@@ -55,6 +56,10 @@ export fn undef_handler() void {
     uart.puts("undef caught\n");
 }
 
+export fn undef_handler2() void {
+    uart.puts("undef2 caught\n");
+}
+
 export fn kmain() void {
     uart.init();
     uart.puts("Serial initialized\n");
@@ -64,12 +69,14 @@ export fn kmain() void {
     kmem.init();
     uart.puts("Done initializing kmem\n");
     uart.puts("Initializing kproc\n");
-    uart.printf("Current EL: {0}", .{get_el()});
+    uart.printf("Current EL: {0}\n", .{get_el()});
+    uart.printf("Current EL: {0}\n", .{get_el()});
 
     // FIXME: there seems to a some bug here
     kproc.init();
     uart.puts("Done initializing kproc\n");
     set_vbar();
+    set_el();
 
     kproc.spawn(main, 0);
     kproc.schedulerLoop();
@@ -78,5 +85,6 @@ export fn kmain() void {
 }
 
 extern fn get_el() u64;
+extern fn set_el() void;
 
 extern fn set_vbar() void;
