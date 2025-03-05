@@ -27,7 +27,7 @@ fn writeFn(_: Unit, b: []const u8) NoError!usize {
 }
 
 pub fn printf(comptime fmt: []const u8, args: anytype) void {
-    var writer: std.io.Writer(Unit, NoError, writeFn) = .{ .context = .{} };
+    const writer: std.io.Writer(Unit, NoError, writeFn) = .{ .context = .{} };
     // XXX: maybe use std.io.Writer()
     std.fmt.format(writer, fmt, args) catch panic.panic("printf failed");
 }

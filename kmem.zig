@@ -38,8 +38,8 @@ fn pgup(addr: usize) usize {
 // Takes in ownership of the page starting at `addr`.
 pub fn free(addr: usize) void {
     // requires addr to be page aligned
-    @intToPtr(*Node, addr).next = freelist;
-    freelist = @intToPtr(*Node, addr);
+    @as(*Node, @ptrFromInt(addr)).next = freelist;
+    freelist = @ptrFromInt(addr);
 }
 
 // Returns ownership of the page starting at the returned address.
@@ -49,9 +49,9 @@ pub fn alloc() !usize {
         // zero out addr
         var i: usize = 0;
         while (i < 4096) : (i += 8) {
-            @intToPtr(*volatile u64, @ptrToInt(addr) + i).* = 0;
+            @as(*volatile u64, @ptrFromInt(@intFromPtr(addr) + i)).* = 0;
         }
-        return @ptrToInt(addr);
+        return @intFromPtr(addr);
     } else {
         return error.OutOfMemory;
     }

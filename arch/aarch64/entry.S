@@ -26,7 +26,7 @@ exception_vectors:
     vector_entry
     vector_entry
 
-    vector_entry
+    vector_entry12
     vector_entry
     vector_entry
     vector_entry
@@ -39,7 +39,7 @@ exception_vectors:
 .global trigger_undef
 .type trigger_undef, @function
 trigger_undef:
-    hvc 37
+    hvc 37 // FIXME: lr (among other registers) changes across this call, which it should not.
     // udf #0xdead
     ret
 
@@ -70,7 +70,7 @@ set_el:
     // enable FPEN, so that EL1 can use SIMD/FP registers, as Zig-generated code
     // (e.g. in printf) does.
     mov x1, (0b11 << 20)
-    msr cptr_el2, x1
+    // msr cptr_el2, x1
     msr cpacr_el1, x1
 
     ldr x1, =fin

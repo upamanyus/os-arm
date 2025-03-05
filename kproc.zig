@@ -38,23 +38,23 @@ var nproc: u64 = 0; // number of currently active processes
 const Func = fn (_: u64) void;
 
 pub fn init() void {
-    uart.printf("Procs using up {0} bytes of memory\n", .{@sizeOf(@TypeOf(procs))});
+    uart.printf("Procs using up {X} bytes of memory\n", .{@sizeOf(@TypeOf(procs))});
 }
 
 pub fn spawn(f: *const Func, args: u64) void {
     if (nproc == max) {
         panic.panic("ran out of kprocs\n");
     }
-    for (procs) |*proc| {
+    for (&procs) |*proc| {
         if (proc.state == .inactive) {
             // found a proc, can return
-            proc.ctx.x[0] = @ptrToInt(f); // in 64-bit, x19 = fn
+            proc.ctx.x[0] = @intFromPtr(f); // in 64-bit, x19 = fn
             proc.ctx.x[1] = args; // in 64-bit, x20 = args
             proc.state = .idle;
             proc.stack_addr = kmem.alloc_or_panic();
             proc.ctx.sp = proc.stack_addr + kmem.pgsize; // top of stack, since it grows down
             proc.ctx.fp = proc.ctx.sp;
-            proc.ctx.lr = @ptrToInt(&kproc_start);
+            proc.ctx.lr = @intFromPtr(&kproc_start);
             nproc += 1;
             return;
         }
@@ -69,7 +69,7 @@ pub fn schedulerLoop() void {
     var took_step = true;
     while (took_step) {
         took_step = false;
-        for (procs) |*proc| {
+        for (&procs) |*proc| {
             if (proc.state == .idle) {
                 proc.state = .running;
                 // run the proc
@@ -96,7 +96,7 @@ pub fn yield() void {
 }
 
 comptime {
-    @export(exit, .{ .name = "kproc_exit", .linkage = .Strong });
+    @export(exit, .{ .name = "kproc_exit", .linkage = .strong });
 }
 
 fn exit() callconv(.C) void {

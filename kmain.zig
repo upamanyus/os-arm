@@ -43,7 +43,7 @@ fn main(_: u64) void {
 
     uart.puts("waiting for input: \n");
     while (true) {
-        var c = uart.getc();
+        const c = uart.getc();
         if (c == '\r') {
             uart.puts("\nExiting\n");
             return;
@@ -63,20 +63,23 @@ export fn undef_handler2() void {
 export fn kmain() void {
     uart.init();
     uart.puts("Serial initialized\n");
+
+    set_vbar();
+    uart.printf("Current EL: {0}\n", .{get_el()});
+    set_el();
+    uart.printf("Current EL: {0}\n", .{get_el()});
+
     // uart.printf("kmem_end = {0x}\n", mem_layout.kern_end);
-    uart.printf("kmem_end = {0x}\n", .{@ptrToInt(&mem_layout.__kern_end)});
+    uart.printf("kmem_end = {0x}\n", .{@intFromPtr(&mem_layout.__kern_end)});
     uart.puts("Initializing kmem\n");
     kmem.init();
     uart.puts("Done initializing kmem\n");
+
     uart.puts("Initializing kproc\n");
-    uart.printf("Current EL: {0}\n", .{get_el()});
-    uart.printf("Current EL: {0}\n", .{get_el()});
 
     // FIXME: there seems to a some bug here
     kproc.init();
     uart.puts("Done initializing kproc\n");
-    set_vbar();
-    set_el();
 
     kproc.spawn(main, 0);
     kproc.schedulerLoop();

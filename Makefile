@@ -2,12 +2,12 @@ PFX = aarch64-linux-gnu-
 
 .PHONY: all
 all:
-	zig build
-	$(PFX)objcopy -O binary build/kernel8.elf kernel8.img
+	zig build --prefix ./build
+	$(PFX)objcopy -O binary build/bin/kernel8.elf kernel8.img
 
 .PHONY: clean
 clean:
-	rm -f build/* kernel8.img
+	rm -rf build/* kernel8.img
 
 qemu: all
 	qemu-system-aarch64 -nographic -M raspi3b -kernel kernel8.img

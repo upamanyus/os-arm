@@ -5,7 +5,7 @@ pub const RawRegister = struct {
     const Self = @This();
 
     pub fn init(address: usize) Self {
-        return .{ .raw_ptr = @intToPtr(*u32, address) };
+        return .{ .raw_ptr = @ptrFromInt(address) };
     }
 
     pub fn read(self: Self) u32 {
@@ -49,12 +49,12 @@ pub fn RWRegister(comptime Read: type, comptime Write: type) type {
         }
 
         pub fn write(self: Self, w: Write) void {
-            self.raw_reg.write(@bitCast(u32, w));
+            self.raw_reg.write(@bitCast(w));
             // uart.printf("0x{0x}\n", .{self.raw_reg.read()});
         }
 
         pub fn read(self: Self) Read {
-            return @bitCast(Read, self.raw_reg.read());
+            return @bitCast(self.raw_reg.read());
         }
 
         pub fn modify(self: Self, new_value: anytype) void {

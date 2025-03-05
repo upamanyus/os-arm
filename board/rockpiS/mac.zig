@@ -82,7 +82,7 @@ var MAC_MAC_CONF = mmio.RawRegister.init(base + 0x0);
 
 fn phy_reset() void {
     // hard reset, by turning the reset pin on and off
-    var gpio0_base: usize = 0xff220000;
+    const gpio0_base: usize = 0xff220000;
     var GPIO0_SWPORTA_DR = mmio.RawRegister.init(gpio0_base + 0x0);
     var GPIO0_SWPORTA_DDR = mmio.RawRegister.init(gpio0_base + 0x4);
 
@@ -235,13 +235,13 @@ pub fn init() void {
     soft_reset_mac();
     phy_reset();
 
-    var reg_vals1: [32]u16 = .{0} ** 32;
-    for (reg_vals1) |_, reg| {
+    const reg_vals1: [32]u16 = .{0} ** 32;
+    for (0..reg_vals1.len) |reg| {
         uart.printf("{0x:4}|", .{reg});
     }
     uart.puts("\n");
-    for (reg_vals1) |*reg_val, reg| {
-        reg_val.* = read_mii(0, @intCast(u5, reg));
+    for (reg_vals1, 0..) |*reg_val, reg| {
+        reg_val.* = read_mii(0, @intCast(reg));
     }
     for (reg_vals1) |*reg_val| {
         uart.printf("{0x:4}|", .{reg_val.*});
@@ -279,16 +279,16 @@ pub fn init() void {
 
     MAC_MAC_FRM_FILT.write(1 << 31);
 
-    var reg_vals: [32]u16 = .{0} ** 32;
-    for (reg_vals) |_, reg| {
+    const reg_vals: [32]u16 = .{0} ** 32;
+    for (0..reg_vals.len) |reg| {
         uart.printf("{0x:4}|", .{reg});
     }
     uart.puts("\n");
 
     var i: usize = 0;
     while (i < 20) : (i += 1) {
-        for (reg_vals) |*reg_val, reg| {
-            reg_val.* = read_mii(0, @intCast(u5, reg));
+        for (reg_vals, 0..) |*reg_val, reg| {
+            reg_val.* = read_mii(0, @intCast(reg));
         }
         for (reg_vals) |*reg_val| {
             uart.printf("{0x:4}|", .{reg_val.*});
@@ -503,14 +503,14 @@ var MAC_CUR_HOST_RX_BUF_ADDR = mmio.RawRegister.init(base + 0x1054);
 pub fn setup_rx_desc() usize {
     // _ = kmem.alloc_or_panic();
     const rx_descs_addr = kmem.alloc_or_panic();
-    var rx_descs = @intToPtr([*]volatile RxDescriptor, rx_descs_addr);
+    var rx_descs: [*]volatile RxDescriptor = @ptrFromInt(rx_descs_addr);
     // set up 4 descriptors
     var i: usize = 0;
     while (i < 4) : (i += 1) {
         rx_descs[i] = RxDescriptor{};
         rx_descs[i].rx.dma_own = 1;
         rx_descs[i].rx.disable_interrupt = 1;
-        rx_descs[i].buffer1_addr = @intCast(u32, kmem.alloc_or_panic());
+        rx_descs[i].buffer1_addr = @intCast(kmem.alloc_or_panic());
         rx_descs[i].buffer1_addr = 0x0deadbee;
         rx_descs[i].buffer2_addr = 0x0deadfab;
         uart.printf("RX buffer = {0x}\n", .{rx_descs[i].buffer1_addr});
@@ -549,7 +549,7 @@ pub fn try_flush_cache() void {
     const random_page = kmem.alloc_or_panic();
     var i: usize = 0;
     while (i < 4096) : (i += 8) {
-        @intToPtr(*volatile u64, random_page + i).* = i;
+        @as(*volatile u64, @ptrFromInt(random_page + i)).* = i;
     }
 }
 
@@ -566,12 +566,12 @@ pub fn setup_and_send_one() void {
     uart.puts("================================================================================\n");
 
     // set up packet data
-    var tx_msg: usize = kmem.alloc_or_panic();
-    var tx_msg_ptr = @intToPtr([*]u8, tx_msg);
+    const tx_msg: usize = kmem.alloc_or_panic();
+    const tx_msg_ptr: [*]u8 = @ptrFromInt(tx_msg);
     setup_packet(tx_msg_ptr);
     const tx_descs_addr = kmem.alloc_or_panic();
 
-    var tx_descs = @intToPtr([*]volatile TxDescriptor, tx_descs_addr);
+    var tx_descs: [*]volatile TxDescriptor = @ptrFromInt(tx_descs_addr);
     tx_descs[0] = TxDescriptor{}; // zero out
     // Set up TX descriptor ring. Need to set "end of ring" on last one.
     tx_descs[0].tx.end_of_ring = 0;
@@ -593,7 +593,7 @@ pub fn setup_and_send_one() void {
     //
 
     // Tell MAC where to find TX descriptors
-    MAC_TX_DESC_LIST_ADDR.write(@intCast(u32, @ptrToInt(tx_descs)));
+    MAC_TX_DESC_LIST_ADDR.write(@intCast(@intFromPtr(tx_descs)));
     // uart.printf("TX desc reg addr: {0x}; tx addr: {1x}\n", .{ MAC_TX_DESC_LIST_ADDR.read(), @ptrToInt(&tx_descs[0]) });
     // uart.printf("Tx desc0and1 = {0x}\n", .{@intToPtr(*u64, MAC_TX_DESC_LIST_ADDR.read()).*});
     // uart.printf("Tx desc2and3 = {0x}\n", .{@intToPtr(*u64, MAC_TX_DESC_LIST_ADDR.read() + 8).*});
@@ -602,10 +602,10 @@ pub fn setup_and_send_one() void {
     const rx_descs_addr = setup_rx_desc();
     // doing this to make sure it's actually being written to
     const rx_descs_addr_hardcoded = 0x1fffc000;
-    uart.printf("RxDesc0 {0x}, ", .{@intToPtr(*volatile u64, rx_descs_addr_hardcoded).*});
-    uart.printf("RxDesc1 {0x}\n", .{@intToPtr(*volatile u64, rx_descs_addr_hardcoded + 8).*});
+    uart.printf("RxDesc0 {0x}, ", .{@as(*volatile u64, @ptrFromInt(rx_descs_addr_hardcoded)).*});
+    uart.printf("RxDesc1 {0x}\n", .{@as(*volatile u64, @ptrFromInt(rx_descs_addr_hardcoded + 8)).*});
 
-    MAC_RX_DESC_LIST_ADDR.write(@intCast(u32, rx_descs_addr));
+    MAC_RX_DESC_LIST_ADDR.write(@intCast(rx_descs_addr));
     // uart.printf("Before enabling DMA, cur rx desc = {0x}; cur rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
 
     uart.printf("Before enabling DMA, cur tx desc = {0x}; cur tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
@@ -640,7 +640,7 @@ pub fn setup_and_send_one() void {
 
     // Enable MAC transmit; TRM says to do this after enabling MAC TX DMA (pg
     // 522).
-    var old_val = MAC_MAC_CONF.read();
+    const old_val = MAC_MAC_CONF.read();
     MAC_MAC_CONF.write(old_val | (0 << 3) | (1 << 2));
     uart.puts("Enabled receive in MAC_MAC_CONF\n");
 
@@ -654,8 +654,8 @@ pub fn setup_and_send_one() void {
         dump_debug();
         const new_status = MAC_STATUS.read();
         uart.printf("Dropped recv packets {0} ", .{MAC_OVERFLOW_CNT.read()});
-        uart.printf("RxDesc0 {0x}, ", .{@intToPtr(*volatile u64, rx_descs_addr).*});
-        uart.printf("RxDesc1 {0x}\n", .{@intToPtr(*volatile u64, rx_descs_addr + 8).*});
+        uart.printf("RxDesc0 {0x}, ", .{@as(*volatile u64, @ptrFromInt(rx_descs_addr)).*});
+        uart.printf("RxDesc1 {0x}\n", .{@as(*volatile u64, @ptrFromInt(rx_descs_addr + 8)).*});
         if (new_status != cur_status) {
             cur_status = new_status;
             break;
@@ -694,7 +694,7 @@ pub fn setup_and_send_one() void {
         return;
     }
 
-    var num_cycles2: usize = 0;
+    const num_cycles2: usize = 0;
     // while ((MAC_STATUS.read() >> 20 & 0b111) == 0b011) : (num_cycles2 += 1) {}
     uart.printf("{0} iters for fetching descriptor; {1} iters for reading buffer\n", .{
         num_cycles1, num_cycles2,
@@ -715,6 +715,6 @@ pub fn setup_and_send_one() void {
 pub fn dump_dma_regs() void {
     var i: usize = 0;
     while (i < 22) : (i += 1) {
-        uart.printf("Reg{0}  0x{1x:08}\n", .{ i, @intToPtr(*volatile u32, base + 0x1000 + i * 4).* });
+        uart.printf("Reg{0}  0x{1x:08}\n", .{ i, @as(*volatile u32, @ptrFromInt(base + 0x1000 + i * 4)).* });
     }
 }

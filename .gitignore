@@ -1,6 +1,6 @@
 *.o
 *.elf
 *.img
-zig-cache/*
+.zig-cache/*
 build/*
 rockpiS/*

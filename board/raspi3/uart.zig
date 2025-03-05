@@ -33,7 +33,7 @@ pub fn init() void {
     // Set it to 3Mhz so that we can consistently set the baud rate
     // if (raspi >= 3) {
     // UART_CLOCK = 30000000;
-    const r: u32 = (@intCast(u32, @ptrToInt(&mbox_clockrate)) & ~@as(u32, 0xF)) | 8;
+    const r: u32 = (@as(u32, @intCast(@intFromPtr(&mbox_clockrate))) & ~@as(u32, 0xF)) | 8;
     // wait until we can talk to the VC
     while (mmio.MBOX_STATUS.read() & 0x80000000 != 0) {}
     // send our message to property channel and wait for the response
@@ -63,5 +63,5 @@ pub fn putc(c: u8) void {
 
 pub fn getc() u8 {
     while (mmio.UART0_FR.read() & (1 << 4) != 0) {}
-    return @intCast(u8, mmio.UART0_DR.read());
+    return @intCast(mmio.UART0_DR.read());
 }

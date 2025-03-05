@@ -17,6 +17,6 @@ pub var end: usize = undefined;
 
 pub fn init() void {
     // impl.init();
-    start = @ptrToInt(&__kern_end);
+    start = @intFromPtr(&__kern_end);
     end = impl.end;
 }

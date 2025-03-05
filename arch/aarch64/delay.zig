@@ -1,7 +1,7 @@
 // XXX: count must not be 0, otherwise this will delay forever.
 pub fn delay(count: u64) void {
     var count_left = count;
-    var count_left_ptr = @ptrCast(*volatile u64, &count_left);
+    const count_left_ptr: *volatile u64 = @ptrCast(&count_left);
 
     while (count_left_ptr.* != 0) {
         count_left_ptr.* -= 1;
