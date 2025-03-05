@@ -235,15 +235,15 @@ pub fn init() void {
     soft_reset_mac();
     phy_reset();
 
-    const reg_vals1: [32]u16 = .{0} ** 32;
+    var reg_vals1: [32]u16 = .{0} ** 32;
     for (0..reg_vals1.len) |reg| {
         uart.printf("{0x:4}|", .{reg});
     }
     uart.puts("\n");
-    for (reg_vals1, 0..) |*reg_val, reg| {
+    for (&reg_vals1, 0..) |*reg_val, reg| {
         reg_val.* = read_mii(0, @intCast(reg));
     }
-    for (reg_vals1) |*reg_val| {
+    for (&reg_vals1) |*reg_val| {
         uart.printf("{0x:4}|", .{reg_val.*});
     }
     uart.puts("\n");
@@ -279,7 +279,7 @@ pub fn init() void {
 
     MAC_MAC_FRM_FILT.write(1 << 31);
 
-    const reg_vals: [32]u16 = .{0} ** 32;
+    var reg_vals: [32]u16 = .{0} ** 32;
     for (0..reg_vals.len) |reg| {
         uart.printf("{0x:4}|", .{reg});
     }
@@ -287,10 +287,10 @@ pub fn init() void {
 
     var i: usize = 0;
     while (i < 20) : (i += 1) {
-        for (reg_vals, 0..) |*reg_val, reg| {
+        for (&reg_vals, 0..) |*reg_val, reg| {
             reg_val.* = read_mii(0, @intCast(reg));
         }
-        for (reg_vals) |*reg_val| {
+        for (&reg_vals) |*reg_val| {
             uart.printf("{0x:4}|", .{reg_val.*});
         }
         uart.puts("\n");

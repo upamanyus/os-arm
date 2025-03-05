@@ -3,6 +3,7 @@ const kmem = @import("kmem.zig");
 const panic = @import("panic.zig");
 const mem_layout = @import("mem_layout.zig");
 const kproc = @import("kproc.zig");
+const delay = @import("arch/aarch64/delay.zig");
 
 const mac = @import("board/rockpiS/mac.zig");
 
@@ -27,9 +28,9 @@ fn kproc2(_: u64) void {
 }
 
 fn main(_: u64) void {
-    // uart.puts("Searching for MAC\n");
-    // mac.init();
-    // uart.puts("Finished searching for MAC\n");
+    uart.puts("Searching for MAC\n");
+    mac.init();
+    uart.puts("Finished searching for MAC\n");
 
     kproc.spawn(kproc1, 0);
     kproc.spawn(kproc2, 0);
@@ -63,6 +64,9 @@ export fn undef_handler2() void {
 export fn kmain() void {
     uart.init();
     uart.puts("Serial initialized\n");
+    uart.puts("Calling delay.delay:");
+    delay.delay(100);
+    uart.puts("done.\n");
 
     set_vbar();
     uart.printf("Current EL: {0}\n", .{get_el()});

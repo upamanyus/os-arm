@@ -13,6 +13,15 @@ const UART0_FCR = mmio.RawRegister.init(UART0_BASE + 0x08);
 const UART0_LCR = mmio.RawRegister.init(UART0_BASE + 0x0c);
 const UART0_LSR = mmio.RawRegister.init(UART0_BASE + 0x14);
 
+fn slow_delay(iters: u64) void {
+    var count_left = iters;
+    const count_left_ptr: *volatile u64 = @ptrCast(&count_left);
+
+    while (count_left_ptr.* != 0) {
+        count_left_ptr.* -= 1;
+    }
+}
+
 pub fn init() void {
     // set the baud rate to 19200
     // XXX: also need USR[0] to be zero
@@ -27,8 +36,7 @@ pub fn init() void {
 
     UART0_LCR.write(0b0); // disable access to DLL+DLH, enable access to other regs
 
-    // wait at least 8 clock cycles (of the slowest uart clock)
-    delay.delay(2e6);
+    slow_delay(2e6);
 
     UART0_FCR.write(0x01); // enable FIFO
 }
@@ -43,5 +51,5 @@ pub fn putc(c: u8) void {
 
 pub fn getc() u8 {
     while (UART0_LSR.read() & 0x1 == 0) {} // if THR empty
-    return UART0_RBR.read();
+    return @intCast(UART0_RBR.read());
 }

@@ -26,13 +26,13 @@ pub fn build(b: *Build) void {
         .name = "kernel8.elf",
         .root_source_file = b.path("kmain.zig"),
         .target = target,
-        .optimize = .ReleaseSafe,
+        .optimize = .ReleaseSmall,
     });
-    // kernel.setOutputDir("build");
 
     kernel.addAssemblyFile(b.path("arch/aarch64/start.S"));
     kernel.addAssemblyFile(b.path("arch/aarch64/switch.S"));
     kernel.addAssemblyFile(b.path("arch/aarch64/entry.S"));
+    kernel.addAssemblyFile(b.path("arch/aarch64/delay.S"));
 
     kernel.setLinkerScriptPath(b.path("arch/aarch64/linker.ld"));
     b.default_step.dependOn(&kernel.step);
