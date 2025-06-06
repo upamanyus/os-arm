@@ -68,10 +68,10 @@ export fn kmain() void {
     delay.delay(100);
     uart.puts("done.\n");
 
-    set_vbar();
-    uart.printf("Current EL: {0}\n", .{get_el()});
-    set_el();
-    uart.printf("Current EL: {0}\n", .{get_el()});
+    // set_vbar();
+    // uart.printf("Current EL: {0}\n", .{get_el()});
+    // set_el();
+    // uart.printf("Current EL: {0}\n", .{get_el()});
 
     // uart.printf("kmem_end = {0x}\n", mem_layout.kern_end);
     uart.printf("kmem_end = {0x}\n", .{@intFromPtr(&mem_layout.__kern_end)});
@@ -81,12 +81,13 @@ export fn kmain() void {
 
     uart.puts("Initializing kproc\n");
 
+    main(0);
     // FIXME: there seems to a some bug here
-    kproc.init();
-    uart.puts("Done initializing kproc\n");
+    // kproc.init();
+    // uart.puts("Done initializing kproc\n");
 
-    kproc.spawn(main, 0);
-    kproc.schedulerLoop();
+    // kproc.spawn(main, 0);
+    // kproc.schedulerLoop();
 
     panic.panic("end of kmain\n");
 }

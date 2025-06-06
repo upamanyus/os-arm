@@ -273,7 +273,7 @@ pub fn init() void {
 
     // restart auto-negotiation
     // write_mii(0, 0, (1 << 9) | read_mii(0, 0));
-    // auto_negotiate();
+    auto_negotiate();
     // disable auto-negotation
     write_mii(0, 0, ~@as(u16, 1 << 12) & read_mii(0, 0));
 
@@ -512,7 +512,7 @@ pub fn setup_rx_desc() usize {
         rx_descs[i].rx.disable_interrupt = 1;
         rx_descs[i].buffer1_addr = @intCast(kmem.alloc_or_panic());
         rx_descs[i].buffer1_addr = 0x0deadbee;
-        rx_descs[i].buffer2_addr = 0x0deadfab;
+        // rx_descs[i].buffer2_addr = 0x0deadfab;
         uart.printf("RX buffer = {0x}\n", .{rx_descs[i].buffer1_addr});
         rx_descs[i].rx.buffer1_size = 1024;
     }
@@ -533,14 +533,16 @@ pub fn auto_negotiate() void {
     uart.printf("Got {0x} from advertise register initially\n", .{MAC_AN_ADV.read()});
     MAC_AN_CTRL.write(1 << 12);
 
-    if (false) {
-        var num_iters: usize = 0;
-        while (true) : (num_iters += 1) {
-            const status = MAC_AN_STATUS.read();
-            uart.printf("Got {0x} from autonegotiation after {1} iters\n", .{ status, num_iters });
-            if (status & (1 << 5) == 1) {
-                break;
-            }
+    // FIXME: set bit 9 to actually trigger AN?
+
+    var num_iters: usize = 0;
+    while (true) : (num_iters += 1) {
+        const status = MAC_AN_STATUS.read();
+        const link_status = MAC_INTF_MODE_STA.read();
+        uart.printf("Got {0x} autonegotiation status, {1x} link status after {2} iters\n", .{ status, link_status, num_iters });
+
+        if (status & (1 << 5) == 1) {
+            break;
         }
     }
 }
@@ -575,7 +577,7 @@ pub fn setup_and_send_one() void {
     tx_descs[0] = TxDescriptor{}; // zero out
     // Set up TX descriptor ring. Need to set "end of ring" on last one.
     tx_descs[0].tx.end_of_ring = 0;
-    // tx_descs[0].buffer1_addr = @intCast(u32, tx_msg);
+    tx_descs[0].buffer1_addr = @intCast(tx_msg);
     // tx_descs[0].buffer2_addr = @intCast(u32, tx_msg);
     tx_descs[0].tx.transmit_buffer1_size = 1024;
     tx_descs[0].tx.transmit_buffer2_size = 0;
@@ -590,7 +592,6 @@ pub fn setup_and_send_one() void {
 
     // disable DMA
     MAC_OP_MODE.write(.{ .start_transmit = 0, .start_receive = 0 });
-    //
 
     // Tell MAC where to find TX descriptors
     MAC_TX_DESC_LIST_ADDR.write(@intCast(@intFromPtr(tx_descs)));
@@ -614,6 +615,7 @@ pub fn setup_and_send_one() void {
     uart.printf("STATUS with no DMA: {0x:8}\n", .{MAC_STATUS.read()});
 
     MAC_INT_ENA.write(0x0001A061); // Reg7  0x0001A061   MAC_INT_ENA
+    MAC_OP_MODE.raw_write(1 << 1 | 1 << 13 | 1 << 2 | 1 << 21 | 1 << 25);
     MAC_OP_MODE.raw_write(1 << 1 | 1 << 13 | 1 << 2 | 1 << 21 | 1 << 25);
 
     // MAC_OP_MODE.write(.{ .start_transmit = 0, .start_receive = 1 });
@@ -689,10 +691,6 @@ pub fn setup_and_send_one() void {
     uart.printf("DMA with TX, tx desc = {0x}; tx buffer = {1x}\n", .{ MAC_CUR_HOST_TX_DESC.read(), MAC_CUR_HOST_TX_BUF_ADDR.read() });
 
     // uart.printf("After enabling DMA, cur rx desc = {0x}; cur rx buffer = {1x}\n", .{ MAC_CUR_HOST_RX_DESC.read(), MAC_CUR_HOST_RX_BUF_ADDR.read() });
-
-    if (true) {
-        return;
-    }
 
     const num_cycles2: usize = 0;
     // while ((MAC_STATUS.read() >> 20 & 0b111) == 0b011) : (num_cycles2 += 1) {}
