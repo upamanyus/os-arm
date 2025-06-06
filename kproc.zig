@@ -65,7 +65,13 @@ pub fn spawn(f: *const Func, args: u64) void {
 var cur_proc: *Process = undefined;
 var sched_ctx: CooperativeContext = undefined;
 
-pub fn schedulerLoop() void {
+fn cleanup_proc(proc: *Process) void {
+    kmem.free(proc.stack_addr); // cleanup
+    proc.state = .inactive;
+    nproc -= 1;
+}
+
+pub fn scheduler_loop() void {
     var took_step = true;
     while (took_step) {
         took_step = false;
@@ -79,8 +85,7 @@ pub fn schedulerLoop() void {
                 // XXX: exit() will set the proc to cleanup to indicate that it
                 // needs to be cleaned up.
                 if (proc.state == .cleanup) {
-                    kmem.free(proc.stack_addr); // cleanup
-                    proc.state = .inactive;
+                    cleanup_proc(proc);
                 } else {
                     proc.state = .idle;
                 }
@@ -100,9 +105,8 @@ comptime {
 }
 
 fn exit() callconv(.C) void {
-    nproc -= 1;
     cur_proc.state = .cleanup;
-    uart.puts("process exiting\n");
+    uart.puts("process marked for cleanup\n");
     yield();
 }
 
