@@ -1,3 +1,6 @@
 When switching to EL1, didn't set CPTR_EL2.FPEN.
 Had to set both cptr_el2 and cpacr_el1.
 Alternatively, can try to get zig to not use fp.
+----
+Another bug:
+https://github.com/ziglang/zig/issues/2934

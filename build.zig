@@ -4,37 +4,34 @@ const Target = @import("std").Target;
 const Feature = @import("std").Target.Cpu.Feature;
 
 pub fn build(b: *Build) void {
-    const features = Target.arm.Feature;
+    const features = Target.aarch64.Feature;
     var disabled_features = Feature.Set.empty;
     disabled_features.addFeature(@intFromEnum(features.fp_armv8));
     disabled_features.addFeature(@intFromEnum(features.neon));
-    var enabled_features = Feature.Set.empty;
-    enabled_features.addFeature(@intFromEnum(features.soft_float));
 
-    const target = b.resolveTargetQuery(std.zig.CrossTarget{
+    const query = std.Target.Query{
         .cpu_arch = std.Target.Cpu.Arch.aarch64,
         .os_tag = std.Target.Os.Tag.freestanding,
         .abi = std.Target.Abi.none,
-        .cpu_model = std.zig.CrossTarget.CpuModel{
+        .cpu_model = std.Target.Query.CpuModel{
             .explicit = &std.Target.aarch64.cpu.cortex_a35,
         },
         .cpu_features_sub = disabled_features,
-        .cpu_features_add = enabled_features,
-    });
+    };
+    const target = b.resolveTargetQuery(query);
 
     const kernel = b.addExecutable(.{
         .name = "kernel8.elf",
         .root_source_file = b.path("kmain.zig"),
         .target = target,
-        .optimize = .ReleaseSmall,
+        .optimize = .Debug,
     });
 
     kernel.addAssemblyFile(b.path("arch/aarch64/start.S"));
-    kernel.addAssemblyFile(b.path("arch/aarch64/switch.S"));
     kernel.addAssemblyFile(b.path("arch/aarch64/entry.S"));
     kernel.addAssemblyFile(b.path("arch/aarch64/delay.S"));
 
-    kernel.setLinkerScriptPath(b.path("arch/aarch64/linker.ld"));
+    kernel.setLinkerScript(b.path("arch/aarch64/linker.ld"));
     b.default_step.dependOn(&kernel.step);
     b.installArtifact(kernel);
 }
