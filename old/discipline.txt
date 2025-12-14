@@ -1,3 +1,0 @@
-Exported names should be prefixed based on what module they are a part of.
-E.g. "mbox_tag" instead of just "tag". Should make exceptions for
-generic/utility functions.
