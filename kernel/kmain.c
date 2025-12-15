@@ -19,7 +19,7 @@ void init(uint64_t arg) {
     uart_printf("Reached init with arg: 0x%x\n", arg);
     syscall();
     uart_puts("Back to init!");
-    (void)uart_getc();
+    uart_getc();
 }
 
 void kmain(void) {

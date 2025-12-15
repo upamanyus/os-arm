@@ -2,14 +2,23 @@
 #include "stdint.h"
 #include "kernel/panic.h"
 #include "kernel/uart.h"
+#include "kernel/delay.h"
 
 #define GRF_BASE 0xFF000000
 #define GRF_REG(offset) (*((volatile unsigned int*)(GRF_BASE + offset)))
 #define GRF_GPIO1B_IOMUX_L GRF_REG(0x0028)
 #define GRF_GPIO1B_IOMUX_H GRF_REG(0x002c)
-#define GRF_GPIO1B_IOMUX_H GRF_REG(0x002c)
 #define GRF_GPIO1C_IOMUX_L GRF_REG(0x0030)
 #define GRF_GPIO1C_IOMUX_H GRF_REG(0x0034)
+#define GRF_MAC_CON0 GRF_REG(0x04a0)
+
+#define CRU_BASE 0xFF500000
+#define CRU_REG(offset) (*((volatile unsigned int*)(CRU_BASE + offset)))
+#define CRU_CLKSEL_CON(i) CRU_REG(0x0100 + (i) * 4)
+#define CRU_SOFTRST_CON(i) CRU_REG(0x0400 + (i) * 4)
+
+#define CRU_GLB_SRST_FST CRU_REG(0x00b8)
+#define CRU_GLB_SRST_SND CRU_REG(0x00bc)
 
 #define MAC_BASE 0xFF4E0000
 #define MAC_REG(offset) (*((volatile unsigned int*)(MAC_BASE + offset)))
@@ -51,9 +60,36 @@
 #define MAC_CUR_HOST_TX_BUF_ADDR MAC_REG(0x1050)
 #define MAC_CUR_HOST_RX_BUF_ADDR MAC_REG(0x1054)
 
-static void reset() {
+static void mac_reset() {
     MAC_BUS_MODE = 1;
     while (MAC_BUS_MODE & 0x1);
+}
+
+#define MICROSECOND 1200 // at 1.2GHz
+#define MILLISECOND (1000 * MICROSECOND)
+
+#define GPIO0_BASE 0xF220000
+#define GPIO0_REG(offset) (*((volatile unsigned int*)(GPIO0_BASE + offset)))
+#define GPIO0_SWPORTA_DR GPIO0_REG(0x0000)
+#define GPIO0_SWPORTA_DDR GPIO0_REG(0x0004)
+#define GPIO0_EXT_PORTA GPIO0_REG(0x0050)
+
+static void phy_reset() {
+    // Test to see the value of PHYRSTB
+    uart_printf("DIR: %x, EXT: %x, OUT: %x\n", GPIO0_SWPORTA_DDR, GPIO0_EXT_PORTA, GPIO0_SWPORTA_DR);
+
+    // The schematic for rk3308 shows that GPIO0_A7 <-> MAC_RST <-> PHYRSTB of the PHY.
+    // RTL8201F docs state that reset requires that PHYRSTB be set low for at
+    // least 10ms, and to high for at least 150 ms before reading any registers.
+    GPIO0_SWPORTA_DDR = (1 << 7);
+    GPIO0_SWPORTA_DR = (0 << 7);
+    delay(50 * MILLISECOND);
+
+    GPIO0_SWPORTA_DDR = (1 << 7);
+    GPIO0_SWPORTA_DR = (1 << 7);
+    uart_printf("DIR: %x, EXT: %x, OUT: %x\n", GPIO0_SWPORTA_DDR, GPIO0_EXT_PORTA, GPIO0_SWPORTA_DR);
+    delay(200 * MILLISECOND);
+    uart_printf("DIR: %x, EXT: %x, OUT: %x\n", GPIO0_SWPORTA_DDR, GPIO0_EXT_PORTA, GPIO0_SWPORTA_DR);
 }
 
 static void pin_init() {
@@ -91,7 +127,7 @@ static uint16_t read_gmii(uint8_t phy_addr, uint8_t reg) {
 static void print_gmii_registers(uint8_t phy) {
     uart_puts("\nMII registers:");
     for (int reg = 0; reg < 32; reg++) {
-        uart_printf("%d: \t%d ", reg, read_gmii(phy, reg));
+        uart_printf("%d: %d    ", reg, read_gmii(phy, reg));
     }
 }
 
@@ -100,8 +136,17 @@ static void write_gmii() {
 
 void rockpis_ethernet_init() {
     pin_init();
-    reset();
-    for (int phy = 0; phy < 32; phy++) {
-        print_gmii_registers(phy);
-    }
+    delay(1000 * MILLISECOND);
+    mac_reset();
+    phy_reset();
+
+    uart_printf("MII Register 0 Basic Mode Control Register: 0x%x\n", read_gmii(0, 0));
+
+    uart_puts("Resetting\n");
+    delay(10 * MILLISECOND);
+    CRU_GLB_SRST_FST = 0xfdb9;
+
+    // for (int phy = 0; phy < 1; phy++) {
+    //     print_gmii_registers(phy);
+    // }
 }
