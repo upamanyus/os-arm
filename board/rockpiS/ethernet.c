@@ -10,6 +10,11 @@
 #define GRF_GPIO1B_IOMUX_H GRF_REG(0x002c)
 #define GRF_GPIO1C_IOMUX_L GRF_REG(0x0030)
 #define GRF_GPIO1C_IOMUX_H GRF_REG(0x0034)
+#define GRF_GPIO1B_P GRF_REG(0x00b4)
+#define GRF_GPIO1C_P GRF_REG(0x00b8)
+#define GRF_GPIO1B_E GRF_REG(0x0114)
+#define GRF_GPIO1C_E GRF_REG(0x0118)
+
 #define GRF_MAC_CON0 GRF_REG(0x04a0)
 
 #define CRU_BASE 0xFF500000
@@ -93,7 +98,11 @@ static void phy_reset() {
 }
 
 static void pin_init() {
-    // TRM section 23.5
+    // Set "PHY interface select"
+    GRF_MAC_CON0 = (0b100 << 2) | (0b111 << (2 + 16));
+    MAC_MAC_CONF = (1 << 15 | 0 << 14); // 15 = select MII; 14 = 0 means 10Mpbs
+
+    // Select IO muxers. Follows TRM section 23.5
     uint32_t gpio1b_iomux_l = (0b11 << 8) | (0b11 << 10) | (0b011 << 12);
     uint32_t gpio1b_iomux_l_mask = (0b11 << (16 + 8)) | (0b11 << (16 + 10)) | (0b111 << (16 + 12));
     GRF_GPIO1B_IOMUX_L = gpio1b_iomux_l | gpio1b_iomux_l_mask;
@@ -109,6 +118,20 @@ static void pin_init() {
     uint32_t gpio1c_iomux_h = (0b011 << 0);
     uint32_t gpio1c_iomux_h_mask = (0b111 << 16);
     GRF_GPIO1C_IOMUX_H = gpio1c_iomux_h | gpio1c_iomux_h_mask;
+
+    // FIXME: this seems unnecessary, but linux and u-boot seem to do it.
+    // Set B4,B5,B6,B7 to "Z" and then C0,C1,C2,C3,C4,C5 to "Z".
+    GRF_GPIO1B_P = (0b00 << 8 | 0b00 << 10 | 0b00 << 12 | 0b00 << 14) | ((0b11 << 8 | 0b11 << 10 | 0b11 << 12 | 0b00 << 14) << 16);
+    GRF_GPIO1C_P = ((0b11 << 0 | 0b11 << 2 | 0b11 << 4 | 0b11 << 6 | 0b11 << 8 | 0b11 << 10) << 16);
+
+    // Set drive strength to 12ma for the following table, based on
+    // +---------------------------------------+
+    // | mac_txen| mac_txd1| mac_txd0| mac_clk |
+    // |---------+---------+---------+---------|
+    // | C1      | C2      | C3      | B4      |
+    // +---------------------------------------+
+    GRF_GPIO1B_E = (0b11 << 8) | ((0b11 << 8) << 16);
+    GRF_GPIO1C_E = (0b11 << 2 | 0b11 << 4 | 0b11 << 6) | ((0b11 << 2 | 0b11 << 4 | 0b11 << 6) << 16);
 }
 
 static uint16_t read_gmii(uint8_t phy_addr, uint8_t reg) {
@@ -119,7 +142,7 @@ static uint16_t read_gmii(uint8_t phy_addr, uint8_t reg) {
         panic("phy_addr out of bounds");
     }
     while (MAC_GMII_ADDR & 0x1); // wait for Busy bit to be 0
-    MAC_GMII_ADDR = (phy_addr << 11) | (0b0011 << 2) | (reg << 6) | 1;
+    MAC_GMII_ADDR = (phy_addr << 11) | (0b0100 << 2) | (reg << 6) | 1;
     while (MAC_GMII_ADDR & 0x1); // wait for Busy bit to be 0
     return (uint16_t)MAC_GMII_DATA;
 }
@@ -140,7 +163,8 @@ void rockpis_ethernet_init() {
     mac_reset();
     phy_reset();
 
-    uart_printf("MII Register 0 Basic Mode Control Register: 0x%x\n", read_gmii(0, 0));
+    uart_printf("PHY0 Register 0 Basic Mode Control Register: 0x%x\n", read_gmii(0, 0));
+    uart_printf("PHY1 Register 0 Basic Mode Control Register: 0x%x\n", read_gmii(1, 0));
 
     uart_puts("Resetting\n");
     delay(10 * MILLISECOND);
