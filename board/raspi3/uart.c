@@ -35,6 +35,9 @@ void raspi3_uart_init(void) {
 }
 
 void raspi3_uart_putc(char c) {
+    if (c == '\n') {
+        raspi3_uart_putc('\r');
+    }
     while (UART0_FR & (1 << 5)) {}
     UART0_DR = c;
 }

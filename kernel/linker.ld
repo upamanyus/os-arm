@@ -3,8 +3,8 @@ ENTRY(_start)
 SECTIONS
 {
     /* Starts at LOADER_ADDR. */
-    . = 0x80000;
-    /* . = 0x800000; for rock pi */
+    /* . = 0x80000; */
+    . = 0x800000; /* for rock pi */
     __start = .;
     __text_start = .;
     .text :

@@ -37,7 +37,7 @@ void *kmem_alloc(void) {
         freelist = addr->next;
         // Zero out the page
         uint64_t *p = (uint64_t*)addr;
-        for (int i = 0; i < KMEM_PGSIZE / sizeof(uint64_t); i++) {
+        for (int i = 0; i < (int)(KMEM_PGSIZE / sizeof(uint64_t)); i++) {
             p[i] = 0;
         }
         return addr;
@@ -48,7 +48,7 @@ void *kmem_alloc(void) {
 void *kmem_alloc_or_panic(void) {
     void *addr = kmem_alloc();
     if (addr == NULL) {
-        panic_panic("out of memory");
+        panic("out of memory");
     }
     return addr;
 }

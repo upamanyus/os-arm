@@ -29,4 +29,3 @@ void dispatch(void) {
     uart_puts("Dispatching.\n");
     switch_to_ectx(ectx);
 }
-

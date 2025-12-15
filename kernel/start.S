@@ -6,7 +6,7 @@ _start:
     mov x0, (1 << 31)
     msr hcr_el2, x0
 
-    // enable FPEN, so that EL1 and EL0 can use SIMD/FP registers, as Zig-generated code
+    // enable FPEN, so that EL1 and EL0 can use SIMD/FP registers
     // (e.g. in printf) does.
     mov x0, (0b11 << 20)
     msr cpacr_el1, x0

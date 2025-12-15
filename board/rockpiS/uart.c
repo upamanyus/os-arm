@@ -29,7 +29,7 @@ void rockpis_uart_init() {
     // UART0 clock = reset DPLL clock is 1200MHz.
     // divisor = desired baud rate / (16 * 1200MHz)
     // For baud rate divisor = 3906
-    UART0_DLL = 13; // DLL
+    UART0_DLL = 3906; // DLL
     UART0_DLH = 0x00;   // DLH
 
     // Clear DLAB and set 8-bit, no parity, 1 stop bit
@@ -39,7 +39,10 @@ void rockpis_uart_init() {
     UART0_FCR = FCR_FIFO_EN | FCR_RCVR_FIFO_CLR | FCR_XMIT_FIFO_CLR;
 }
 
-void rockpis_uart_send(char c) {
+void rockpis_uart_putc(char c) {
+    if (c == '\n') {
+        rockpis_uart_putc('\r');
+    }
     while (!(UART0_LSR & LSR_THRE));
     UART0_THR = c;
 }

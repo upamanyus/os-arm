@@ -3,6 +3,7 @@
 #include "board/raspi3/uart.h"
 #elif defined(BOARD_rockpiS)
 #include "board/rockpiS/uart.h"
+#include "board/rockpiS/ethernet.h"
 #endif
 #include "kmem.h"
 #include "panic.h"
@@ -34,12 +35,17 @@ void kmain(void) {
     kmem_init();
     uart_puts("done.\n");
 
+#ifdef BOARD_rockpiS
+    uart_puts("Initializing ethernet...");
+    rockpis_ethernet_init();
+    uart_puts("done.");
+#endif
+
     uart_puts("Initializing router...");
     execution_context_init((uint64_t)&init);
     uart_puts("done.\n");
 
     dispatch();
 
-    panic_panic("end of kmain\n");
+    panic("end of kmain\n");
 }
-
