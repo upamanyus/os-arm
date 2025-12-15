@@ -1,18 +1,5 @@
 #include "uart.h"
-#include "board/raspi3/uart.h"
 #include <stdarg.h>
-
-void uart_init(void) {
-    raspi3_uart_init();
-}
-
-void uart_putc(int c) {
-    raspi3_uart_putc((char)c);
-}
-
-int uart_getc(void) {
-    return (int)raspi3_uart_getc();
-}
 
 void uart_puts(const char *s) {
     for (int i = 0; s[i] != '\0'; i++) {

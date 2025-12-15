@@ -1,5 +1,5 @@
 #include "mmio.h"
-#include "../../delay.h"
+#include "kernel/delay.h"
 #include <stdint.h>
 
 volatile uint32_t mbox_clockrate[9] __attribute__((aligned(16))) = {

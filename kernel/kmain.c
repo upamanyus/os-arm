@@ -1,4 +1,9 @@
 #include "uart.h"
+#ifdef BOARD_raspi3
+#include "board/raspi3/uart.h"
+#elif defined(BOARD_rockpiS)
+#include "board/rockpiS/uart.h"
+#endif
 #include "kmem.h"
 #include "panic.h"
 #include "mem_layout.h"
