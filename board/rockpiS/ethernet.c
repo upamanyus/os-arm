@@ -21,6 +21,15 @@
 #define CRU_REG(offset) (*((volatile unsigned int*)(CRU_BASE + offset)))
 #define CRU_CLKSEL_CON(i) CRU_REG(0x0100 + (i) * 4)
 #define CRU_SOFTRST_CON(i) CRU_REG(0x0400 + (i) * 4)
+#define CRU_CLKSEL_CON43 CRU_REG(0x01ac)
+
+static void set_clk_rate() {
+    // Corresponds to set_clk_rate in the zig code
+    // TODO: try writing 0 to bit 14 instead of 1
+    CRU_CLKSEL_CON43 = (0b11111 << 16) | 0x0e | (0 << 14) | ((1 << 14) << 16);
+    uart_puts("Set mac clock to ~50MHz, and rmii_extclk_sel = from CRU\n");
+}
+
 
 #define CRU_GLB_SRST_FST CRU_REG(0x00b8)
 #define CRU_GLB_SRST_SND CRU_REG(0x00bc)
@@ -73,7 +82,7 @@ static void mac_reset() {
 #define MICROSECOND 1200 // at 1.2GHz
 #define MILLISECOND (1000 * MICROSECOND)
 
-#define GPIO0_BASE 0xF220000
+#define GPIO0_BASE 0xFF220000
 #define GPIO0_REG(offset) (*((volatile unsigned int*)(GPIO0_BASE + offset)))
 #define GPIO0_SWPORTA_DR GPIO0_REG(0x0000)
 #define GPIO0_SWPORTA_DDR GPIO0_REG(0x0004)
@@ -99,8 +108,8 @@ static void phy_reset() {
 
 static void pin_init() {
     // Set "PHY interface select"
-    GRF_MAC_CON0 = (0b100 << 2) | (0b111 << (2 + 16));
-    MAC_MAC_CONF = (1 << 15 | 0 << 14); // 15 = select MII; 14 = 0 means 10Mpbs
+    GRF_MAC_CON0 = (0b100 << 2) | (0b111 << (2 + 16)) | (1) | (1 << 16);
+    MAC_MAC_CONF = (1 << 15 | 0 << 14); // 15 = 1 select RMII;
 
     // Select IO muxers. Follows TRM section 23.5
     uint32_t gpio1b_iomux_l = (0b11 << 8) | (0b11 << 10) | (0b011 << 12);
@@ -141,9 +150,15 @@ static uint16_t read_gmii(uint8_t phy_addr, uint8_t reg) {
     if (reg >= 32) {
         panic("phy_addr out of bounds");
     }
+    MAC_GMII_DATA = 0;
+
     while (MAC_GMII_ADDR & 0x1); // wait for Busy bit to be 0
-    MAC_GMII_ADDR = (phy_addr << 11) | (0b0100 << 2) | (reg << 6) | 1;
-    while (MAC_GMII_ADDR & 0x1); // wait for Busy bit to be 0
+    MAC_GMII_ADDR = (phy_addr << 11) | (0b0000 << 2) | (reg << 6) | 1;
+    int cycles = 0;
+    while (MAC_GMII_ADDR & 0x1) {
+        cycles += 1;
+    } // wait for Busy bit to be 0
+    uart_printf("Waited %d cycles\n", cycles);
     return (uint16_t)MAC_GMII_DATA;
 }
 
@@ -154,14 +169,17 @@ static void print_gmii_registers(uint8_t phy) {
     }
 }
 
-static void write_gmii() {
-}
-
 void rockpis_ethernet_init() {
+    set_clk_rate();
     pin_init();
     delay(1000 * MILLISECOND);
     mac_reset();
     phy_reset();
+
+    uart_printf("Attempting to read PHY ID (Registers 2 and 3)...\n");
+    uint16_t phy_id_reg2 = read_gmii(0, 2);
+    uint16_t phy_id_reg3 = read_gmii(0, 3);
+    uart_printf("PHY ID Reg 2: 0x%x, PHY ID Reg 3: 0x%x\n", phy_id_reg2, phy_id_reg3);
 
     uart_printf("PHY0 Register 0 Basic Mode Control Register: 0x%x\n", read_gmii(0, 0));
     uart_printf("PHY1 Register 0 Basic Mode Control Register: 0x%x\n", read_gmii(1, 0));
